@@ -24,6 +24,40 @@ def load_snvs(snv_file):
     snv_catalog.set_index(['Contig', 'Site'], inplace=True)
     return snv_catalog
 
+def convert_snv_catalog_to_vcf(species, data_batch, syn_core_only=True):
+    vcf_base = os.path.join(config.vcf_path, data_batch)
+    if not os.path.exists(vcf_base):
+        os.makedirs(vcf_base)
+    input_file = os.path.join(config.snv_catalog_path, data_batch, species, 'output', '{}.catalog.noAuto.wtRef.tsv'.format(species))
+    output_file = os.path.join(vcf_base, '{}.vcf'.format(species))
+    if syn_core_only:
+        core_gene_file = os.path.join(config.snv_catalog_path, data_batch, species, 'output', '{}_core_genome_mask.tsv'.format(species))
+        degeneracy_file = os.path.join(config.snv_catalog_path, data_batch, species, 'output', '{}_4D_sites.tsv'.format(species))
+        snv_catalog, _  = load_and_filter_snv_catalog(input_file, degeneracy_file, core_gene_file)
+    else:
+        snv_catalog = load_snvs(input_file)
+
+    with open(input_file, 'r') as f, open(output_file, 'w') as fout:
+        print(f"Converting {input_file} to VCF format")
+        header = f.readline().strip().split('\t')
+        # Write the VCF header
+        fout.write("##fileformat=VCFv4.2\n")
+        fout.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" + "\t".join(header[1:]) + "\n")
+        
+        line_count = 0
+        for ind, line in snv_catalog.iterrows():
+            contig, position, ref, alt = ind
+            genotypes = []
+            for gt in line[header[1:]]:
+                if gt == 255:
+                    genotypes.append(".")
+                else:
+                    genotype = f"{gt}"
+                    genotypes.append(genotype)
+            fout.write(f"{contig}\t{position}\t.\t{ref}\t{alt}\t.\tPASS\t.\tGT\t" + "\t".join(genotypes) + "\n")
+            line_count += 1
+    print(f"VCF file written to {output_file}")
+    print("Write {} snps".format(line_count))
 
 def load_core_gene_mask(core_gene_file):
     # check if file is empty
@@ -163,37 +197,3 @@ def parse_snp_id(snp_id):
     ref = items[2]
     alt = items[3]
     return contig, position, ref, alt
-
-def convert_snv_catalog_to_vcf(species, data_batch):
-    vcf_base = os.path.join(config.vcf_path, data_batch)
-    if not os.path.exists(vcf_base):
-        os.makedirs(vcf_base)
-    input_file = os.path.join(config.snv_catalog_path, data_batch, species, 'output', '{}.catalog.noAuto.wtRef.tsv'.format(species))
-    output_file = os.path.join(vcf_base, '{}.vcf'.format(species))
-
-    with open(input_file, 'r') as f, open(output_file, 'w') as fout:
-        print(f"Converting {input_file} to VCF format")
-        header = f.readline().strip().split('\t')
-        # Write the VCF header
-        fout.write("##fileformat=VCFv4.2\n")
-        fout.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" + "\t".join(header[1:]) + "\n")
-        
-        line_count = 0
-        for line in f:
-            parts = line.strip().split('\t')
-            snp_info = parse_snp_id(parts[0])
-            if snp_info:
-                contig, position, ref, alt = snp_info
-                # Prepare the genotype info
-                genotypes = []
-                for gt in parts[1:]:
-                    if gt == "255":
-                        genotypes.append(".")
-                    else:
-                        genotype = f"{gt}"
-                        genotypes.append(genotype)
-                # Write the VCF entry
-                fout.write(f"{contig}\t{position}\t.\t{ref}\t{alt}\t.\tPASS\t.\tGT\t" + "\t".join(genotypes) + "\n")
-                line_count += 1
-    print(f"VCF file written to {output_file}")
-    print("Write {} snps".format(line_count))

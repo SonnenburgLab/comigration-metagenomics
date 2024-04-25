@@ -210,6 +210,74 @@ def no_mig_exp(params, ns, pts):
     fs = dadi.Spectrum.from_phi(phi, ns, (xx,xx))
     return fs
 
+def mig_two_epoch(params, ns, pts):
+    """
+    Split into two populations, with migration.
+    Each population undergoes exponential growth after the split.
+    """
+    nu1, nu2, nu1_fi, nu2_fi, T, T1, T2, m= params
+
+    xx = dadi.Numerics.default_grid(pts)
+
+    phi = dadi.PhiManip.phi_1D(xx)
+    phi = dadi.PhiManip.phi_1D_to_2D(xx, phi)
+
+    nu1_func = lambda t: nu1 if t < T * T1 else nu1_fi
+    nu2_func = lambda t: nu2 if t < T * T2 else nu2_fi
+
+    phi = dadi.Integration.two_pops(phi, xx, T, nu1_func, nu2_func, m12=m, m21=m)
+
+    fs = dadi.Spectrum.from_phi(phi, ns, (xx,xx))
+    return fs
+
+def mig_two_epoch_varying_m(params, ns, pts):
+    """
+    Split into two populations, with migration.
+    Each population undergoes two epoch growth after the split.
+    Migration stops after Tiso * T generations.
+    """
+    nu1, nu2, nu1_fi, nu2_fi, T, T1, T2, m, m2, Tiso = params
+
+    xx = dadi.Numerics.default_grid(pts)
+
+    phi = dadi.PhiManip.phi_1D(xx)
+    phi = dadi.PhiManip.phi_1D_to_2D(xx, phi)
+
+    nu1_func = lambda t: nu1 if t < T * T1 else nu1_fi
+    nu2_func = lambda t: nu2 if t < T * T2 else nu2_fi
+    mu_func = lambda t: m if t < T * Tiso else m2
+
+    phi = dadi.Integration.two_pops(phi, xx, T, nu1_func, nu2_func, m12=mu_func, m21=mu_func)
+
+    fs = dadi.Spectrum.from_phi(phi, ns, (xx,xx))
+    return fs
+
+def mig_anc_two_epoch(params, ns, pts):
+    """
+    Split into two populations, no migration.
+    Ancestral population is under exponential growth.
+
+    nu1: Size of population 1 after split.
+    nu2: Size of population 2 after split.
+    T: Time in the past of split (in units of 2*Na generations)
+    nuA: Size of ancestral population
+    TA: Time in the past at which ancestral population growth began
+    mu: Migration rate
+    """
+    nu1, nu2, T, nuA, TA, mu = params
+
+    xx = dadi.Numerics.default_grid(pts)
+    phi = dadi.PhiManip.phi_1D(xx)
+    
+    phi = dadi.Integration.one_pop(phi, xx, TA, nuA)
+
+    phi = dadi.PhiManip.phi_1D_to_2D(xx, phi)
+    # split population evolve for T gen
+    phi = dadi.Integration.two_pops(phi, xx, T, nu1, nu2, m12=mu, m21=mu)
+
+    fs = dadi.Spectrum.from_phi(phi, ns, (xx,xx))
+    return fs
+
 def mig_exp(params, ns, pts):
     """
     Split into two populations, with migration.
