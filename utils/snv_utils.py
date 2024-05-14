@@ -279,58 +279,9 @@ def load_dadi_snps_metadata(batch_name):
     metadata_path = os.path.join(config.dadi_dat_path, '{}__metadata.csv'.format(batch_name))
     return pd.read_csv(metadata_path, index_col=0)
 
-def get_population_accession_identifier(pop_name):
-    if pop_name == 'Hadza':
-        return 'Hadza'
-    elif pop_name == 'Tsimane':
-        return 'TS'
-    elif pop_name == 'HMP':
-        return 'SRS'
-    elif pop_name == 'MetaHIT':
-        return 'ERS'
-    else:
-        raise ValueError('Population not recognized')
-    
-def sample_name_to_population(sample_name):
-    if 'Hadza' in sample_name:
-        return 'Hadza'
-    elif 'TS' in sample_name:
-        return 'Tsimane'
-    elif 'SRS' in sample_name:
-        return 'HMP'
-    elif 'ERS' in sample_name:
-        return 'MetaHIT'
-    else:
-        raise ValueError('Population not recognized')
-
-def sample_number_from_header(snv_file):
-    """
-    Extract the number of samples from the header of a snv file.
-    """
-    # read first line to get the column names
-    with open(snv_file) as f:
-        first_line = f.readline().strip()
-        samples = first_line.split('\t')[1:]
-        num_hadza, num_ts = sample_names_to_H_T(samples)
-    return num_hadza, num_ts
-
-def sample_names_to_H_T(samples):
-    num_hadza = sum(['Hadza' in col for col in samples])
-    num_ts = sum(['TS' in col for col in samples])
-    return num_hadza, num_ts
-
-def sample_names_to_HMP(samples):
-    # TODO: eventually use the true accession table
-    num_hmp = sum(['SRS' in col for col in samples])
-    return num_hmp
-
-def sample_names_to_metahit(samples):
-    # TODO: eventually use the true accession table
-    num_meta = sum(['ERS' in col for col in samples])
-    return num_meta
-
 def load_and_filter_snv_catalog(snv_file, degeneracy_file, core_gene_file):
     """
+    TODO: deprecated; use SNVHelper instead; also the 1D sites are not full here, only the last codon position
     Returns only 1D and 4D sites in the core genome.
     Shape: (n_snps, n_samples)
     """
@@ -377,25 +328,9 @@ def load_and_filter_snv_catalog(snv_file, degeneracy_file, core_gene_file):
     return syn_snvs, nonsyn_snvs
 
 
-def get_4D_core_indices(degeneracy_file, core_gene_file):
-    degen_sites = load_degeneracy(degeneracy_file)
-    core_gene_index = load_core_gene_mask(core_gene_file)
-    if core_gene_index is None:
-        return 0, 0
-    core_4D = degen_sites.index.isin(core_gene_index)
-    return degen_sites[core_4D].sort_index()
-
-def get_4D_core_indices(degeneracy_file, core_gene_file):
-    degen_sites = load_degeneracy(degeneracy_file)
-    degen_4D = degen_sites[degen_sites['Degeneracy'] == 4]
-    core_gene_index = load_core_gene_mask(core_gene_file)
-    if core_gene_index is None:
-        return None
-    core_mask = degen_4D.index.isin(core_gene_index)
-    return degen_4D[core_mask].index
-
 def get_core_genome_length(degeneracy_file, core_gene_file):
     """
+    TODO: implement a method in SNVHelper
     Return both the total length of the core genome and the length of the 4D core genome.
     """
     core_gene_index = load_core_gene_mask(core_gene_file)
@@ -403,21 +338,3 @@ def get_core_genome_length(degeneracy_file, core_gene_file):
         return 0, 0
     core_4D = get_4D_core_indices(degeneracy_file, core_gene_file)
     return core_gene_index.shape[0], len(core_4D)
-
-def split_snvs(snv_catalog, pops=['Hadza', 'TS']):
-    """
-    Split the snv_catalog into multiple dataframes, one for each population.
-    """
-    pop_snvs = []
-    for pop in pops:
-        pop_mask = np.array([pop in x for x in snv_catalog.columns])
-        pop_snvs.append(snv_catalog.loc[:, pop_mask])
-    return pop_snvs
-
-def parse_snp_id(snp_id):
-    items = snp_id.split('||')
-    contig = items[0] 
-    position = items[1]
-    ref = items[2]
-    alt = items[3]
-    return contig, position, ref, alt
