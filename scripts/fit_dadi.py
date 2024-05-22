@@ -1,9 +1,7 @@
 import dadi
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from matplotlib.backends.backend_pdf import PdfPages
 from utils import dadi_utils
 
 output_pdf = 'figs/dadi_output_20240319_masked_100-.pdf'

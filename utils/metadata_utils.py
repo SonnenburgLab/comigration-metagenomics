@@ -12,17 +12,32 @@ class MetadataHelper:
 
         species_metadata = pd.read_csv(self.species_path, sep='\t')
         species_metadata['species_names'] = species_metadata['rep_genome'].apply(lambda x: x.split('__')[0])
+        # a couple rows have the same species name but different abundances
+        species_metadata.drop_duplicates(subset=['species_names'], inplace=True)
         species_metadata.set_index('species_names', inplace=True)
         species_metadata.sort_index(inplace=True)
         self.species = species_metadata
 
         self.mag_to_pop = self.mag['study'].to_dict()
+        self.all_pops = self.mag['study'].unique()
+        for pop in self.all_pops:
+            # parse str to int
+            self.species[pop] = self.species[pop].astype(int)
+
+    def drop_duplicate_species(self):
+        self.species = self.species[~self.species.index.duplicated()]
 
     def get_species_list(self):
         return self.species.index.tolist()
+    
+    def get_mag_counts(self, species_name):
+        if species_name in self.species.index:
+            return self.species.loc[species_name, self.all_pops]
+        else:
+            raise ValueError(f'{species_name} not found in species metadata')
 
     def get_mag_pop(self, mag_name):
         return self.mag_to_pop.get(mag_name, None)
     
     def get_all_pops(self):
-        return self.mag['study'].unique()
+        return self.all_pops

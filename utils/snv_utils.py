@@ -6,14 +6,18 @@ import os
 import pandas as pd
 import numpy as np
 import logging
+from pathlib import Path
 
 import config
 from utils import metadata_utils
 
 class SNVHelper:
-    def __init__(self, species_name, data_batch, metadata_helper=None, cache_snvs=False):
+    def __init__(self, species_name, data_batch, metadata_helper=None, cache_snvs=True):
         self.species_name = species_name
         self.data_batch = data_batch
+        self.snv_file = config.snv_catalog_path / self.data_batch / self.species_name / 'output' / f'{self.species_name}.catalog.noAuto.wtRef.tsv'
+        self.degeneracy_file = config.snv_catalog_path / self.data_batch / self.species_name / 'output' / f'{self.species_name}_4D_sites.tsv'
+        self.core_gene_file = config.snv_catalog_path / self.data_batch / self.species_name / 'output' / f'{self.species_name}_core_genome_mask.tsv'
         if metadata_helper is None:
             self.metahelper = metadata_utils.MetadataHelper(data_batch)
         else:
@@ -22,30 +26,44 @@ class SNVHelper:
         logging.info(f"Loading SNV data for {species_name}")
         if cache_snvs:
             self.cache_format = config.cache_format
-            cache_syn_snvs_path = config.cache_snvs_path / data_batch / f'{species_name}_syn_snvs.{self.cache_format}'
+            self.cache_syn_snvs_path = config.cache_snvs_path / data_batch / 'syn_snvs' / f'{species_name}_syn_snvs.{self.cache_format}'
             # check if already computed
-            if cache_syn_snvs_path.exists():
-                logging.info(f"Loading cached SNVs from {cache_syn_snvs_path}")
-                self.syn_snvs = self.load_cached_snvs(cache_syn_snvs_path, self.cache_format)
+            if self.cache_syn_snvs_path.exists():
+                logging.info(f"Loading cached SNVs from {self.cache_syn_snvs_path}")
+                self.syn_snvs = self.load_cached_snvs(self.cache_syn_snvs_path, self.cache_format)
                 self.genome_names = self.syn_snvs.columns.values.tolist()
                 return
+    
         logging.info("Computing synonymous SNVs")
-        self.load_raw_snvs()
-        self.syn_snvs = self.get_4D_core_snvs()
+        self.load_degeneracy()
+        self.load_core_gene_index()
+        # this is usually the slower step because it involves parsing a big csv
+        self.load_snvs()
+        self.syn_snvs = self.compute_4D_core_snvs()
         if cache_snvs:
             self.cache_snvs()
         self.genome_names = self.syn_snvs.columns.values.tolist()
 
-    def load_raw_snvs(self):
-        snv_file = config.snv_catalog_path / self.data_batch / self.species_name / 'output' / f'{self.species_name}.catalog.noAuto.wtRef.tsv'
-        degeneracy_file = config.snv_catalog_path / self.data_batch / self.species_name / 'output' / f'{self.species_name}_4D_sites.tsv'
-        core_gene_file = config.snv_catalog_path / self.data_batch / self.species_name / 'output' / f'{self.species_name}_core_genome_mask.tsv'
-
-        # TODO: move these to static methods?
-        self.snvs = load_snvs(snv_file)
+    def load_degeneracy(self):
         # degeneracy df only contains sites at the last codon position, so does not contain all sites
-        self.degeneracy = load_degeneracy(degeneracy_file)
-        self.core_gene_index = load_core_gene_mask(core_gene_file)
+        self.degeneracy = load_degeneracy(self.degeneracy_file)
+    
+    def load_snvs(self):
+        self.snvs = load_snvs(self.snv_file)
+
+    def load_core_gene_index(self):
+        self.core_gene_index = load_core_gene_mask(self.core_gene_file)
+
+    def load_cached_coverage_matrix(self):
+        self.coverage_matrix_path = config.cache_snvs_path / self.data_batch / 'coverage' / f'{self.species_name}_coverage.{self.cache_format}'
+        if not self.coverage_matrix_path.exists():
+            logging.warning(f'Coverage matrix not found at {self.coverage_matrix_path}')
+        elif self.cache_format == 'feather':
+            self.coverage = pd.read_feather(self.coverage_matrix_path)
+        elif self.cache_format == 'parquet':
+            self.coverage = pd.read_parquet(self.coverage_matrix_path)
+        self.coverage.set_index(['Contig', 'Site'], inplace=True)
+        self.coverage.sort_index(inplace=True)
     
     # static helper for loading cached dataframes
     @staticmethod
@@ -68,7 +86,7 @@ class SNVHelper:
         return df
     
     def cache_snvs(self):
-        cache_syn_snvs_path = config.cache_snvs_path / self.data_batch 
+        cache_syn_snvs_path = config.cache_snvs_path / self.data_batch / 'syn_snvs'
         if not cache_syn_snvs_path.exists():
             os.makedirs(cache_syn_snvs_path)
         cache_syn_snvs_path = cache_syn_snvs_path / f'{self.species_name}_syn_snvs.{self.cache_format}'
@@ -80,25 +98,60 @@ class SNVHelper:
         elif self.cache_format=='parquet':
             self.syn_snvs.reset_index().to_parquet(cache_syn_snvs_path)
 
+    def get_core_gene_index(self):
+        # NOT sorted!
+        if not hasattr(self, 'core_gene_index'):
+            # loading necessary data
+            logging.info('Data not loaded; loading raw data')
+            self.load_core_gene_index()
+        return self.core_gene_index
+    
+    def get_degeneracy(self):
+        if not hasattr(self, 'degeneracy'):
+            # loading necessary data
+            logging.info('Data not loaded; loading raw data')
+            self.load_degeneracy()
+        return self.degeneracy
+    
+    def get_coverage(self):
+        if not hasattr(self, 'coverage'):
+            # loading necessary data
+            logging.info('Data not loaded; loading cached coverage matrix')
+            self.load_cached_coverage_matrix()
+        return self.coverage
+
     def get_4D_core_indices(self):
+        # NOT sorted!
         #TODO: using multiindexing; could be a bit slow compared to boolean masks
-        if self.core_gene_index is None:
+        core_index = self.get_core_gene_index()
+        if core_index is None:
             return None
-        degen_4D = self.degeneracy[self.degeneracy['Degeneracy'] == 4]
-        core_mask = degen_4D.index.isin(self.core_gene_index)
+        degen = self.get_degeneracy()
+        degen_4D = degen[degen['Degeneracy'] == 4]
+        core_mask = degen_4D.index.isin(core_index)
         return degen_4D[core_mask].index
     
-    def get_4D_core_snvs(self):
+    def get_4D_core_genome_length(self):
+        core_index = self.get_4D_core_indices()
+        if core_index is None:
+            return 0
+        return len(core_index)
+    
+    def get_num_syn_snps(self):
+        return self.syn_snvs.shape[0]
+    
+    def compute_4D_core_snvs(self):
         """
         The resulting DataFrame has the following multi-index, which specify a unique snv:
         contig, position, ref, alt
 
         The values of the DataFrame should be 0, 1, or 255, where 0 is the reference allele, 1 is the alternate allele, and 255 is missing data.
         """
-        # check if core_gene_index is in attributes
+        if not hasattr(self, 'snvs'):
+            # loading necessary data
+            logging.info('Data not loaded; loading raw data')
+            self.load_snvs()
 
-        if not hasattr(self, 'core_gene_index'):
-            raise ValueError('Raw data not loaded; call load_raw_snvs() first')
         core_indices = self.get_4D_core_indices()
         if core_indices is None:
             raise ValueError('No core genome found')
@@ -108,14 +161,20 @@ class SNVHelper:
         syn_snvs.drop(['snp_id'], axis=1, inplace=True)
         return syn_snvs.sort_index()
     
+    
     def get_biallelic_core_snvs(self):
         # TODO: implement by grouping the snvs by index and checking if there are only two alleles
         pass
 
     def get_population_mask(self, pop_name):
         # need MetadataHelper
+        self.genome_names = self.syn_snvs.columns.values.tolist()
         pops = np.array([self.metahelper.get_mag_pop(x) for x in self.genome_names])
         return pops == pop_name
+    
+    def get_population_snvs(self, pop_name):
+        pop_mask = self.get_population_mask(pop_name)
+        return self.syn_snvs.loc[:, pop_mask]
     
     def compute_population_coverage(self, pop_name):
         # default: computing for 4D core sites
@@ -131,14 +190,17 @@ class SNVHelper:
         alt_counts = (pop_snvs==1).sum(axis=1)
         return pd.DataFrame({'Ref count': ref_counts, 'Alt count': alt_counts}, index=pop_snvs.index)
 
-    def save_dadi_data_dict(self, pops):
+    def save_dadi_data_dict(self, pops, output_path=None):
         """
         Write the snps to a file in the format required by dadi
         # https://dadi.readthedocs.io/en/latest/user-guide/importing-data/
 
         """
-        # output file default path
-        output = config.sfs_path / self.data_batch
+        if output_path is None:
+            # output file default path
+            output = config.sfs_path / self.data_batch
+        else:
+            output = Path(output_path)
         if not os.path.exists(output):
             os.makedirs(output)
         output_file = output / f'{self.species_name}.snps.txt'
@@ -150,7 +212,8 @@ class SNVHelper:
         header_items.append('Allele2')
         for pop in pops:
             header_items.append(pop)
-        header_items = header_items + ['Contig', 'Position', '\n']
+        # these last ones are joined together as the snp_id
+        header_items = header_items + ['Contig', 'Position', 'snp_id_Ref', 'snp_id_Alt', '\n']
 
         # calculating counts for snvs in each population
         snv_counts = {}
@@ -181,7 +244,7 @@ class SNVHelper:
                     refs.append(snv_counts[pop].at[ind, 'Ref count'])
                     alts.append(snv_counts[pop].at[ind, 'Alt count'])
                 
-                line_items = [ref_string, out_string, a1] + refs + [a2] + alts + [contig, pos, '\n']
+                line_items = [ref_string, out_string, a1] + refs + [a2] + alts + [contig, pos, a1, a2, '\n']
                 line_items = [str(x) for x in line_items]
                 snp_file.write('\t'.join(line_items))
         logging.info(f'File written to {output_file}')
@@ -230,41 +293,6 @@ def load_snvs(snv_file):
     snv_catalog.set_index(['Contig', 'Site'], inplace=True)
     return snv_catalog
 
-def convert_snv_catalog_to_vcf(species, data_batch, syn_core_only=True):
-    vcf_base = os.path.join(config.vcf_path, data_batch)
-    if not os.path.exists(vcf_base):
-        os.makedirs(vcf_base)
-    input_file = os.path.join(config.snv_catalog_path, data_batch, species, 'output', '{}.catalog.noAuto.wtRef.tsv'.format(species))
-    output_file = os.path.join(vcf_base, '{}.vcf'.format(species))
-    if syn_core_only:
-        core_gene_file = os.path.join(config.snv_catalog_path, data_batch, species, 'output', '{}_core_genome_mask.tsv'.format(species))
-        degeneracy_file = os.path.join(config.snv_catalog_path, data_batch, species, 'output', '{}_4D_sites.tsv'.format(species))
-        snv_catalog, _  = load_and_filter_snv_catalog(input_file, degeneracy_file, core_gene_file)
-    else:
-        snv_catalog = load_snvs(input_file)
-
-    with open(input_file, 'r') as f, open(output_file, 'w') as fout:
-        print(f"Converting {input_file} to VCF format")
-        header = f.readline().strip().split('\t')
-        # Write the VCF header
-        fout.write("##fileformat=VCFv4.2\n")
-        fout.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" + "\t".join(header[1:]) + "\n")
-        
-        line_count = 0
-        for ind, line in snv_catalog.iterrows():
-            contig, position, ref, alt = ind
-            genotypes = []
-            for gt in line[header[1:]]:
-                if gt == 255:
-                    genotypes.append(".")
-                else:
-                    genotype = f"{gt}"
-                    genotypes.append(genotype)
-            fout.write(f"{contig}\t{position}\t.\t{ref}\t{alt}\t.\tPASS\t.\tGT\t" + "\t".join(genotypes) + "\n")
-            line_count += 1
-    print(f"VCF file written to {output_file}")
-    print("Write {} snps".format(line_count))
-
 def load_core_gene_mask(core_gene_file):
     # check if file is empty
     try:
@@ -272,69 +300,95 @@ def load_core_gene_mask(core_gene_file):
     except pd.errors.EmptyDataError:
         return None
     core_gene_df.columns = ['Contig', 'Site']
-    core_gene_index = core_gene_df.set_index(['Contig', 'Site']).index
+    core_gene_index = core_gene_df.set_index(['Contig', 'Site']).index.drop_duplicates()
     return core_gene_index
 
-def load_dadi_snps_metadata(batch_name):
-    metadata_path = os.path.join(config.dadi_dat_path, '{}__metadata.csv'.format(batch_name))
-    return pd.read_csv(metadata_path, index_col=0)
+# next few functions are for handling coords files
 
-def load_and_filter_snv_catalog(snv_file, degeneracy_file, core_gene_file):
+def filename_to_samples(filename):
+    items = filename.stem.split('-')
+    return items[0], items[1]
+
+def parse_coords(filename):
     """
-    TODO: deprecated; use SNVHelper instead; also the 1D sites are not full here, only the last codon position
-    Returns only 1D and 4D sites in the core genome.
-    Shape: (n_snps, n_samples)
+    Parse the coordinates from the output of nucmer (which is part of the UHGG snv calling pipeline).
+    Example first few lines:
+
+    Agathobacter_rectalis__TS_ADULT_82.fa Agathobacter_rectalis/genomes/Agathobacter_rectalis__ERS396293.fa
+    NUCMER
+
+        [S1]     [E1]  |     [S2]     [E2]  |  [LEN 1]  [LEN 2]  |  [% IDY]  | [TAGS]
+    =====================================================================================
+    59522    61379  |        1     1858  |     1858     1858  |    98.98  | TS_ADULT_82__NODE_593_length_71722_cov_112.888729	ERS396293|6|k85_102948
+
     """
+    data = []
+    with open(filename, 'r') as file:
+        for i, line in enumerate(file):
+            if i < 5:  # Skip the header lines
+                continue
+            # cannot use | to split, since the query tag might contain |
+            # split the line on \t first to remove the query tag
+            items = line.split('\t')
+            info = items[0]
+            query_contig = items[1].strip('\n')
+            # Split the line on '|' first, then on whitespace and tab as appropriate
+            parts = info.split('|')
+            ref_coord = parts[0].split()
+            query_coord = parts[1].split()
+            lengths = parts[2].split()
+            percent_identity = parts[3].strip()
+            ref_contig = parts[4].strip()
+            row = ref_coord + query_coord + lengths + [percent_identity, ref_contig, query_contig]
+            data.append(row)
+    df = pd.DataFrame(data, columns=['ref_start', 'ref_end', 'query_start', 'query_end', 'ref_length', 'query_length', 'percent_identity', 'ref_contig', 'query_contig'])
+    df[['ref_start', 'ref_end', 'query_start', 'query_end', 'ref_length', 'query_length']] = df[['ref_start', 'ref_end', 'query_start', 'query_end', 'ref_length', 'query_length']].astype(int)
+    df['percent_identity'] = df['percent_identity'].astype(float)
+    return df
 
-    degen_sites = load_degeneracy(degeneracy_file)
-    snv_catalog = load_snvs(snv_file)
-    core_gene_index = load_core_gene_mask(core_gene_file)
-
-    degen_1D = degen_sites[degen_sites['Degeneracy'] == 1]
-    degen_4D = degen_sites[degen_sites['Degeneracy'] == 4]
-
-    core_1D = snv_catalog.index.isin(degen_1D.index) & snv_catalog.index.isin(core_gene_index)
-    core_4D = snv_catalog.index.isin(degen_4D.index) & snv_catalog.index.isin(core_gene_index)
-
-    syn_snvs = snv_catalog.loc[core_4D, :].copy()
-    syn_snvs.set_index(['ref', 'alt'], append=True, inplace=True)
-    syn_snvs.drop(['snp_id'], axis=1, inplace=True)
-    nonsyn_snvs = snv_catalog.loc[core_1D, :].copy()
-    nonsyn_snvs.set_index(['ref', 'alt'], append=True, inplace=True)
-    nonsyn_snvs.drop(['snp_id'], axis=1, inplace=True)
-
-    syn_snvs = syn_snvs.sort_index()
-    nonsyn_snvs = nonsyn_snvs.sort_index()
-
-    # saving previous approach for now, copying degeneracy and filter;
-    # also took care of duplicate sites in degenracy file
-
-    # # only coding sites are in the degeneracy file
-    # coding_mask = snv_catalog.index.isin(degen_sites.index)
-    # # remove duplicate sites
-    # # these are likely caused by overlapping genes, so two annotations
-    # dup_sites = degen_sites.index[degen_sites.index.duplicated()]
-    # dup_mask = snv_catalog.index.isin(dup_sites)
-    # filtered_snps = snv_catalog.loc[coding_mask & (~dup_mask), :].copy()
-    # # copy degeneracy info to dataframe
-    # filtered_snps['Degeneracy'] = degen_sites[~degen_sites.index.duplicated()]['Degeneracy']
-    # # put all necessary columns in the index
-    # filtered_snps.set_index(['ref', 'alt'], append=True, inplace=True)
-    # # for most use cases, only 4D and 1D sites are useful
-    # syn_snps = filtered_snps.loc[filtered_snps['Degeneracy']==4, :].copy()
-    # nonsyn_snps = filtered_snps.loc[filtered_snps['Degeneracy']==1, :].copy()
-    # syn_snps.drop(['snp_id', 'Degeneracy'], axis=1, inplace=True)
-    # nonsyn_snps.drop(['snp_id', 'Degeneracy'], axis=1, inplace=True)
-    return syn_snvs, nonsyn_snvs
-
-
-def get_core_genome_length(degeneracy_file, core_gene_file):
+def compute_coverage_matrix_from_coords(filenames, core_gene_idx, mag_names):
     """
-    TODO: implement a method in SNVHelper
-    Return both the total length of the core genome and the length of the 4D core genome.
+    Compute the coverage matrix from the coordinates files output by nucmer.
+    Input:
+    - filenames: list of filenames for all the coordinates files; name should be in the format ref_name-query_name.coords
+    - core_gene_idx: index of the core genes, as a pandas MultiIndex
+    - mag_names: list of MAG names
+    Output:
+    - coverage_matrix: DataFrame of shape (len(core_gene_idx), len(mag_names)) with the coverage for each MAG at each core gene
+    Values are integers, representing the number of MAG chunks covering a given reference location.
     """
-    core_gene_index = load_core_gene_mask(core_gene_file)
-    if core_gene_index is None:
-        return 0, 0
-    core_4D = get_4D_core_indices(degeneracy_file, core_gene_file)
-    return core_gene_index.shape[0], len(core_4D)
+    # just in case; need to make sure sites are ordered and unique
+    core_gene_idx = core_gene_idx.drop_duplicates()
+    core_gene_idx = core_gene_idx.sort_values()
+    mask = np.empty((len(core_gene_idx), len(mag_names)), dtype=int)
+    coverage_matrix = pd.DataFrame(mask, index=core_gene_idx, columns=mag_names)
+
+    # saving time by caching the contig masks
+    contigs = coverage_matrix.index.get_level_values(0)
+    core_contigs = contigs.unique()
+    contig_to_mask = {contig: contigs == contig for contig in core_contigs}
+
+    sites = coverage_matrix.index.get_level_values(1)
+
+    for filename in filenames:
+        logging.info(f'Processing {filename}')
+
+        ref_name, query_name = filename_to_samples(filename)
+        if query_name not in mag_names:
+            logging.warning(f'Genome {query_name} not found in provided mag_names')
+            continue
+        coords_df = parse_coords(filename)
+
+        # saves panda indexing overhead by setting a numpy array first, and finally assigning it to the coverage matrix
+        coverage = np.zeros(len(core_gene_idx), dtype=int)
+        for contig, chunks in coords_df.groupby('ref_contig'):
+            if contig not in core_contigs:
+                continue
+            contig_mask = contig_to_mask[contig]
+            for i, row in chunks.iterrows():
+                ref_start = row['ref_start']
+                ref_end = row['ref_end']
+                chunk_mask = contig_mask & (sites >= ref_start) & (sites <= ref_end)
+                coverage[chunk_mask] += 1
+        coverage_matrix.loc[:, query_name] = coverage
+    return coverage_matrix

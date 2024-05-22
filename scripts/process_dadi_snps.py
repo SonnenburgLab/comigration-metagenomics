@@ -1,3 +1,6 @@
+"""
+TODO: can probably safely delete this script 05/14/2024
+"""
 import numpy as np
 import pandas as pd
 import os
@@ -46,8 +49,8 @@ for species, _ in metadata.iterrows():
     syn_snvs, _  = snv_utils.load_and_filter_snv_catalog(snv_file, degeneracy_file, core_gene_file)
 
     pop_snvs = snv_utils.split_snvs(syn_snvs, pops=pop_ids)
-    dadi_file = os.path.join(dadi_dat_path, species + '.snps.txt')
-    dadi_utils.write_dadi_input(dadi_file, pop_snvs, pops=['Hadza', 'Tsimane', 'HMP', 'MetaHIT'])
+    # dadi_file = os.path.join(dadi_dat_path, species + '.snps.txt')
+    # dadi_utils.write_dadi_input(dadi_file, pop_snvs, pops=['Hadza', 'Tsimane', 'HMP', 'MetaHIT'])
 
     # write metadata
     metadata.loc[species, 'Core Genome Len'] = num_core
