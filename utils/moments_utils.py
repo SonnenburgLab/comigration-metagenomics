@@ -107,6 +107,15 @@ def count_segragating_snvs_in_pops(data_dict, pops):
     num_seg_in_focal = (all_is_seg.any(axis=1)).sum()
     return num_seg_in_focal
 
-def get_SFS_stats(species, data_batch):
-    sfs_file = config.sfs_path / data_batch / f'{species}.snps.txt'
-    dd = dadi.Misc.make_data_dict(sfs_file)
+# def get_SFS_stats(species, data_batch):
+#     sfs_file = config.sfs_path / data_batch / f'{species}.snps.txt'
+#     dd = dadi.Misc.make_data_dict(sfs_file)
+
+def rescale_time(T, theta, num_sites, mu=4.08e-10, gen_per_day=1):
+    """
+    In the model, theta=4 * N_ref * mu, while the unit of T is 2 * N_ref
+    """
+    N_anc = theta / num_sites / mu / 2
+    t_gen = T * N_anc
+    t_years = t_gen / (365 * gen_per_day)
+    return t_years

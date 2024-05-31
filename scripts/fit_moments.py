@@ -44,7 +44,7 @@ output_file = output_path / f'{data_batch}__{model_name}.csv'
 # preparing the dataframe
 columns = ['species'] + param_names + ['theta', 'log_likelihood'] \
     + [f'uncert_{param}' for param in param_names] + ['uncert_theta']\
-    + ['syn_genome_length', 'num_syn_snps', 'num_focal_snvs', 'num_snps_after_projection'] \
+    + ['syn_genome_length', 'num_sites_passing_proj', 'num_syn_snps', 'num_focal_snvs', 'num_snps_after_projection'] \
     + [f'num_{pop}' for pop in focal_pops] \
     + [f'proj_{pop}' for pop in focal_pops]
 # result_df = pd.DataFrame(columns=columns)
@@ -88,9 +88,21 @@ for species in full_species_list:
     num_focal_snvs = snv_stats['num_focal_snvs']
     num_snps_after_projection = snv_stats['num_proj_snvs']
 
+    # TODO: added on 2024/05/29. Calculates number of sites that pass the projection threshold
+    coverage = snv_helper.get_coverage()
+    core_4D_sites = snv_helper.get_4D_core_indices()
+    coverage_mat = coverage.loc[core_4D_sites]
+    passed_sites = []
+    for i, pop in enumerate(focal_pops):
+        pop_mask = snv_helper.get_population_mask(pop)
+        pop_coverage = coverage_mat.loc[:, pop_mask]
+        proj = snv_stats[f'proj_{pop}']
+        passed_sites.append(pop_coverage.sum(axis=1) >= proj)
+    num_passed = np.sum(passed_sites[0] & passed_sites[1])
+
     line_vals = [species] + opt_params.tolist() + [theta, ll]  \
                 + uncerts.tolist() \
-                + [syn_genome_length, num_syn_snps, num_focal_snvs, num_snps_after_projection] \
+                + [syn_genome_length, num_passed, num_syn_snps, num_focal_snvs, num_snps_after_projection] \
                 + mag_counts.values.tolist() + [snv_stats[f'proj_{pop}'] for pop in focal_pops]
 
     logging.info(f"Writing {species} to file")
