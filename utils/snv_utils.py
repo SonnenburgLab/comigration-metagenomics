@@ -31,6 +31,7 @@ class SNVHelper:
             if self.cache_syn_snvs_path.exists():
                 logging.info(f"Loading cached SNVs from {self.cache_syn_snvs_path}")
                 self.syn_snvs = self.load_cached_snvs(self.cache_syn_snvs_path, self.cache_format)
+                self.check_reference_syn_snvs()
                 self.genome_names = self.syn_snvs.columns.values.tolist()
                 return
     
@@ -40,6 +41,7 @@ class SNVHelper:
         # this is usually the slower step because it involves parsing a big csv
         self.load_snvs()
         self.syn_snvs = self.compute_4D_core_snvs()
+        self.check_reference_syn_snvs()
         if cache_snvs:
             self.cache_snvs()
         self.genome_names = self.syn_snvs.columns.values.tolist()
@@ -57,7 +59,7 @@ class SNVHelper:
     def load_cached_coverage_matrix(self):
         self.coverage_matrix_path = config.cache_snvs_path / self.data_batch / 'coverage' / f'{self.species_name}_coverage.{self.cache_format}'
         if not self.coverage_matrix_path.exists():
-            logging.warning(f'Coverage matrix not found at {self.coverage_matrix_path}')
+            raise RuntimeError(f'Coverage matrix not found at {self.coverage_matrix_path}')
         elif self.cache_format == 'feather':
             self.coverage = pd.read_feather(self.coverage_matrix_path)
         elif self.cache_format == 'parquet':
@@ -161,6 +163,12 @@ class SNVHelper:
         syn_snvs.drop(['snp_id'], axis=1, inplace=True)
         return syn_snvs.sort_index()
     
+    def check_reference_syn_snvs(self):
+        # check if the reference genome is in syn_snvs, and if so, make sure it's set to all 0s
+        # the reason this function exists is that databatch 240509 includes the reference in the snv catalog as a column of 255s
+        rep_genome = self.metahelper.get_species_rep_genome(self.species_name)
+        if rep_genome in self.syn_snvs.columns:
+            self.syn_snvs[rep_genome] = 0
     
     def get_biallelic_core_snvs(self):
         # TODO: implement by grouping the snvs by index and checking if there are only two alleles
@@ -276,6 +284,181 @@ class SNVHelper:
                 fout.write(f"{contig}\t{position}\t.\t{ref}\t{alt}\t.\tPASS\t.\tGT\t" + "\t".join(genotypes) + "\n")
         logging.info(f"VCF file written to {output_file}")
 
+
+# a child class for handling SNV vectors when doing between MAG comparison
+class PairwiseSNVHelper(SNVHelper):
+    """
+    A child class of SNVHelper that is specifically designed for handling SNV vectors.
+
+    Loads additional data, such as the coverage matrix, and provides additional methods for computing SNV vectors.
+    """
+    def __init__(self, species_name, data_batch):
+        super().__init__(species_name, data_batch, metadata_helper=None, cache_snvs=True)
+        self.load_cached_coverage_matrix()
+        core_4D_sites = self.get_4D_core_indices()
+        core_to_4D = self.coverage.index.isin(core_4D_sites)
+        self.core_4D_coverage = self.coverage[core_to_4D].copy()
+
+        self.compute_bi_allelic_snvs()
+
+    def compute_bi_allelic_snvs(self):
+        """
+        Find the bi-allelic SNVs in the SNV catalog and save the locations of them.
+        Mask the multi-allelic sites.
+        """
+        # iterate over the first two levels of syn_snvs index
+        multi_sites = self.syn_snvs.groupby(level=[0, 1]).filter(lambda x: len(x) > 1).index
+        multi_sites_index = multi_sites.droplevel(level=[2, 3]).drop_duplicates()
+        snv_to_bi_mask = ~(self.syn_snvs.index.isin(multi_sites))
+        self.bi_snvs = self.syn_snvs[snv_to_bi_mask]
+
+        multi_mask = self.core_4D_coverage.index.isin(multi_sites_index)
+        print("{} multi-allelic sites masked".format(multi_mask.sum()))
+        self.core_4D_coverage.loc[multi_mask] = 0 # masking the multi-allelic sites for now; TODO revisit later
+
+        self.bi_snv_index = self.bi_snvs.index.droplevel(level=[2, 3])
+        self.core_4D_to_bi_snvs = self.core_4D_coverage.index.isin(self.bi_snv_index)
+
+        self.bi_snv_vector_locs = np.nonzero(self.core_4D_to_bi_snvs)[0]
+
+    def get_snv_vector(self, sample1, sample2):
+        """
+        Compute the location of SNVs that are different between two samples.
+        """
+        cover_mat = self.core_4D_coverage[[sample1, sample2]].values
+        cover_vec = np.all(cover_mat==1, axis=1)
+
+        snv_cover = cover_vec[self.core_4D_to_bi_snvs]
+
+        is_snv = ((self.bi_snvs[sample1]==0) & (self.bi_snvs[sample2]==1)) | ((self.bi_snvs[sample1]==1) & (self.bi_snvs[sample2]==0))
+        is_snv = is_snv.values & snv_cover 
+        snv_locs = self.bi_snv_vector_locs[is_snv].copy()
+        return snv_locs, cover_vec
+
+    @staticmethod
+    def compute_identical_fraction(snp_vec, block_size=1000):
+        snp_blocks = to_snv_blocks(snp_vec, block_size)
+        frac_id = np.mean(snp_blocks == 0)
+        return frac_id
+    
+    @staticmethod
+    def compute_runs(snp_vec, positions=None, return_locs=False):
+        """
+        Compute the runs of identical sites given a vector of 0s and 1s.
+        Runs include start->first snp and last snp->end
+        If coordinate position of each site is provided, the function will compute runs in terms of coordinate positions.
+        If return_locs is True, the function will return the start and end locations of each run.
+        """
+        # get the locations of snps in the vector
+        padded_vec = np.ones(len(snp_vec) + 2)
+        padded_vec[1:-1] = snp_vec
+        # the locations here are along the snp_vec, not the reference genome
+        site_locations = np.nonzero(padded_vec)[0]
+        if positions is not None:
+            padded_locs = np.zeros(len(positions) + 2)
+            padded_locs[0] = positions[0] - 1
+            padded_locs[1:-1] = positions 
+            padded_locs[-1] = positions[-1] + 1
+            locs = padded_locs[site_locations]
+        else:
+            locs = site_locations
+        runs = site_locations[1:] - site_locations[:-1] - 1
+        starts = locs[:-1][runs > 0]
+        ends = locs[1:][runs > 0]
+        runs = runs[runs > 0]
+        if return_locs:
+            return runs, starts, ends
+        return runs
+    
+    @staticmethod
+    def compute_runs_by_contigs(snp_vec, contigs, positions=None, return_locs=False):
+        """
+        Compute the runs of identical sites given a vector of 0s and 1s, separated by contigs.
+        That is, runs are computed separately for each contig, and no run can span two contigs.
+        Assuming that snp_vec is ordered by contigs.
+
+        Parameters:
+        - snp_vec: numpy array of 0s and 1s
+        - contigs: numpy array of contig names, same shape as snp_vec
+        - positions: numpy array of positions along the reference genome, same shape as snp_vec
+        - return_locs: if True, return the start and end locations of each run
+        """
+        all_runs = []
+        all_starts = []
+        all_ends = []
+        for contig in pd.unique(contigs):
+            subvec = snp_vec[contigs==contig]
+            if positions is not None:
+                subloc = positions[contigs==contig]
+            else:
+                subloc = None
+            res = PairwiseSNVHelper.compute_runs(subvec, subloc, return_locs=True)
+            all_runs.append(res[0])
+            all_starts.append(res[1])
+            all_ends.append(res[2])
+        if return_locs:
+            return np.concatenate(all_runs), np.concatenate(all_starts), np.concatenate(all_ends)
+        else:
+            return np.concatenate(all_runs)
+        
+    def compute_runs_for_pairs(self, pairs, separate_contigs=False):
+        """
+        Compute the runs of identical sites for each pair of samples / MAGs / genomes.
+        If separate_contigs is True, the runs are computed separately for each contig.
+        """
+        if separate_contigs:
+            raise NotImplementedError('Separate contigs not implemented yet')
+        runs = {}
+        for pair in pairs:
+            snv_locs, cover_vec = self.get_snv_vector(pair[0], pair[1])
+            snv_vec = np.zeros(cover_vec.shape)
+            snv_vec[snv_locs] = 1
+            snv_vec = snv_vec[cover_vec]
+            runs[pair] = self.compute_runs(snv_vec)
+        return runs
+    
+    def compute_frac_id_for_pairs(self, pairs, block_size=1000):
+        """
+        Compute the fraction of identical sites for each pair of samples / MAGs / genomes.
+        """
+        genome1s = [pair[0] for pair in pairs]
+        genome2s = [pair[1] for pair in pairs]
+        res = pd.DataFrame()
+        res['genome1'] = genome1s
+        res['genome2'] = genome2s
+        res['frac_id'] = np.nan
+        for i, pair in enumerate(pairs):
+            snv_locs, cover_vec = self.get_snv_vector(pair[0], pair[1])
+            snv_vec = np.zeros(cover_vec.shape)
+            snv_vec[snv_locs] = 1
+            snv_vec = snv_vec[cover_vec]
+            frac_id = self.compute_identical_fraction(snv_vec, block_size)
+            res.at[i, 'frac_id'] = frac_id
+        return res
+        
+    @staticmethod
+    def generate_pairs(samples):
+        # helper for doing pairwise comparisons
+        # generate all unique pairs within a list
+        pairs = []
+        for i in range(len(samples)):
+            for j in range(i + 1, len(samples)):
+                pairs.append((samples[i], samples[j]))
+        return pairs
+
+    @staticmethod
+    def generate_pairs_between(samples1, samples2):
+        # generate all unique pairs between two lists
+        pairs = []
+        for i in range(len(samples1)):
+            for j in range(len(samples2)):
+                pairs.append((samples1[i], samples2[j]))
+        return pairs
+    
+    def get_all_genome_pairs(self):
+        return self.generate_pairs(self.genome_names)
+
+
 def load_degeneracy(degeneracy_file):
     degen_sites = pd.read_csv(degeneracy_file, delimiter='\t')
     # degen_sites.columns = ['contig', 'location', 'degeneracy', 'ref']
@@ -327,18 +510,18 @@ def parse_coords(filename):
         for i, line in enumerate(file):
             if i < 5:  # Skip the header lines
                 continue
-            # cannot use | to split, since the query tag might contain |
-            # split the line on \t first to remove the query tag
-            items = line.split('\t')
-            info = items[0]
-            query_contig = items[1].strip('\n')
             # Split the line on '|' first, then on whitespace and tab as appropriate
-            parts = info.split('|')
+            parts = line.split('|')
             ref_coord = parts[0].split()
             query_coord = parts[1].split()
             lengths = parts[2].split()
             percent_identity = parts[3].strip()
-            ref_contig = parts[4].strip()
+
+            # now rejoin the tags, since they may contain '|' characters
+            tags = '|'.join(parts[4:])
+            items = tags.split()
+            ref_contig = items[0]
+            query_contig = items[1]
             row = ref_coord + query_coord + lengths + [percent_identity, ref_contig, query_contig]
             data.append(row)
     df = pd.DataFrame(data, columns=['ref_start', 'ref_end', 'query_start', 'query_end', 'ref_length', 'query_length', 'percent_identity', 'ref_contig', 'query_contig'])
@@ -392,3 +575,23 @@ def compute_coverage_matrix_from_coords(filenames, core_gene_idx, mag_names):
                 coverage[chunk_mask] += 1
         coverage_matrix.loc[:, query_name] = coverage
     return coverage_matrix
+
+
+# A few functions copied from Liu & Good 2024 microbiome recombination project
+def length_to_num_blocks(seq_len, block_size):
+    # Magical formula that works for all cases
+    return (seq_len + block_size - 1) // block_size
+
+def to_snv_blocks(bool_array, block_size):
+    """
+    Converting a boolean array into blocks of True counts. The last
+    block could be shorter than block_size
+    :param bool_array:
+    :param block_size:
+    :return: An array of counts of Trues in blocks
+    """
+    # coarse-graining the bool array (snp array) into blocks
+    num_blocks = length_to_num_blocks(len(bool_array), block_size)
+    bins = np.arange(0, num_blocks * block_size + 1, block_size)
+    counts, _ = np.histogram(np.nonzero(bool_array), bins)
+    return counts

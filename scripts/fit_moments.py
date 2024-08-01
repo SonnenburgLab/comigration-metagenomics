@@ -17,29 +17,31 @@ from utils import moments_utils, metadata_utils, snv_utils
 data_batch = '240509'
 min_sample_size = 10
 mask_singletons = True
-focal_pops = ['Hadza', 'Tsimane']
+# focal_pops = ['Hadza', 'Tsimane']
+focal_pops = ['China', 'MetaHIT']
+# focal_pops = ['Nepal', 'MetaHIT']
 
 # set up model related parameters
-# model = moments.Demographics2D.split_mig
-# model_name = 'split_mig'
-# # for split_mig: nu1, nu2, T, m
-# param_names = ['nu1', 'nu2', 'T', 'm']
-# p_guess = [2, 2, .1, 1]
-# lower_bound = [1e-3, 1e-3, 1e-3, 1e-3]
-# upper_bound = [100, 100, 20, 10]
+model = moments.Demographics2D.split_mig
+model_name = 'split_mig'
+# for split_mig: nu1, nu2, T, m
+param_names = ['nu1', 'nu2', 'T', 'm']
+p_guess = [2, 2, .1, 1]
+lower_bound = [1e-3, 1e-3, 1e-3, 1e-3]
+upper_bound = [100, 100, 20, 10]
 
-model = moments_utils.split_no_mig
-model_name = 'split_no_mig'
-param_names = ['nu1', 'nu2', 'T']
-p_guess = [2, 2, .1]
-lower_bound = [1e-3, 1e-3, 1e-3]
-upper_bound = [100, 100, 20]
+# model = moments_utils.split_no_mig
+# model_name = 'split_no_mig'
+# param_names = ['nu1', 'nu2', 'T']
+# p_guess = [2, 2, .1]
+# lower_bound = [1e-3, 1e-3, 1e-3]
+# upper_bound = [100, 100, 20]
 
 # set up output files
 # output_pdf = 'figs/moments_split_mig_sfs.pdf'
 output_path = Path('moments_out')
 output_path.mkdir(exist_ok=True)
-output_file = output_path / f'{data_batch}__{model_name}.csv'
+output_file = output_path / f'{data_batch}__{model_name}__{focal_pops[0]}__{focal_pops[1]}.csv'
 
 # preparing the dataframe
 columns = ['species'] + param_names + ['theta', 'log_likelihood'] \

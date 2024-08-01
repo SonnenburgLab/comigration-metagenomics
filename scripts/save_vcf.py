@@ -1,8 +1,8 @@
 import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 from utils import metadata_utils, snv_utils
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 # Load the metadata
 metadata = metadata_utils.MetadataHelper(data_batch='240509')
 pops = metadata.get_all_pops()

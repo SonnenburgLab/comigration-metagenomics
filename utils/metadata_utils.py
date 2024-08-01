@@ -30,6 +30,11 @@ class MetadataHelper:
     def get_species_list(self):
         return self.species.index.tolist()
     
+    def get_new_species_list(self, old_data_batch):
+        old_metadata = MetadataHelper(old_data_batch)
+        old_species_list = old_metadata.get_species_list()
+        return [s for s in self.get_species_list() if s not in old_species_list]
+    
     def get_mag_counts(self, species_name):
         if species_name in self.species.index:
             return self.species.loc[species_name, self.all_pops]
@@ -41,3 +46,10 @@ class MetadataHelper:
     
     def get_all_pops(self):
         return self.all_pops
+    
+    def get_species_rep_genome(self, species_name):
+        return self.species.loc[species_name, 'rep_genome']
+    
+    def get_mags_pop_count(self, mags):
+        pops = [self.get_mag_pop(mag) for mag in mags]
+        return pd.Series(pops).value_counts()

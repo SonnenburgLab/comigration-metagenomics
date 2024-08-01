@@ -11,15 +11,15 @@ from utils import moments_utils, metadata_utils
 data_batch = '240509'
 focal_pops = ['Hadza', 'Tsimane']
 
-model_name = 'split_no_mig'
-param_names = ['nu1', 'nu2', 'T']
-model_func = moments_utils.split_no_mig
+# model_name = 'split_no_mig'
+# param_names = ['nu1', 'nu2', 'T']
+# model_func = moments_utils.split_no_mig
 
-# model_name = 'split_mig'
-# model_func = moments.Demographics2D.split_mig
-# param_names = ['nu1', 'nu2', 'T', 'm']
+model_name = 'split_mig'
+model_func = moments.Demographics2D.split_mig
+param_names = ['nu1', 'nu2', 'T', 'm']
 
-output_pdf = f'figs/moments_sfs__{data_batch}__{model_name}.pdf'
+output_pdf = f'figs/240610_moments_sfs__{data_batch}__{model_name}.pdf'
 
 moments_results = pd.read_csv(f'moments_out/{data_batch}__{model_name}.csv', index_col=False)
 moments_results.set_index('species', inplace=True)
@@ -38,7 +38,7 @@ with PdfPages(output_pdf) as pdf:
 
         plt.figure(figsize=(8,6))
         moments.Plotting.plot_2d_comp_multinom(
-            model_func(opt_params, data.sample_sizes), data, resid_range=5)
+            model_func(opt_params, data.sample_sizes), data, resid_range=5, vmin=1)
 
         plt.gcf().text(0.5, 1.1, species, ha='center', va='top')
         param_string = ', '.join([f"{param}: {val:.2f}" for param, val in zip(param_names, opt_params)])
