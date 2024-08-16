@@ -22,7 +22,7 @@ hgt_res['genome2'] = hgt_res['reference'].str.replace('\.fa', '')
 
 metadata = metadata_utils.MetadataHelper(config.databatch)
 all_assignments = []
-fig_dir = Path('figs/240730_perc_id_clustermap.pdf')
+fig_dir = Path('figs/240812_perc_id_clustermap.pdf')
 with PdfPages(fig_dir) as pdf:
     for species_name, species_res in hgt_res.groupby('species'):
         print(species_name)
@@ -77,4 +77,4 @@ with PdfPages(fig_dir) as pdf:
         pdf.savefig(bbox_inches='tight')
         plt.close()
 
-        clusters['cluster'].to_csv(f'dat/clusters/240731_{species_name}_clusters.csv')
+        clusters['cluster'].to_csv(f'dat/clusters/240812_{species_name}_clusters.csv')

@@ -1,17 +1,23 @@
 import logging
+import pandas as pd
 
-from utils import metadata_utils, snv_utils
+from utils import snv_utils, pairwise_utils
 import config
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
-data_batch = config.databatch
-# Load the metadata
-metadata = metadata_utils.MetadataHelper(data_batch=data_batch)
-pops = metadata.get_all_pops()
-for species in metadata.get_species_list():
-    logging.info(f'Processing {species}')
-    snv_helper = snv_utils.SNVHelper(species_name=species, 
-                                     data_batch=data_batch, cache_snvs=True)
+pairwise_helper = pairwise_utils.PairwiseHelper(databatch=config.databatch)
 
-    snv_helper.save_dadi_data_dict(pops=pops)
+all_mag_df = []
+for species_name in pairwise_helper.metadata.get_species_list():
+    logging.info(f'Processing {species_name}')
+    species_helper = pairwise_helper.get_species_helper(species_name)
+    passed_mags = species_helper.get_nonclonal_mags()
+    mag_df = pd.DataFrame(index=passed_mags, columns=['species'])
+    mag_df['species'] = species_name
+    all_mag_df.append(mag_df)
+    species_snv_helper = snv_utils.SNVHelper(species_name, data_batch=config.databatch)
+    species_snv_helper.save_dadi_data_dict(pops=pairwise_helper.metadata.get_all_pops(), allowed_mags=passed_mags)
+
+all_mag_df = pd.concat(all_mag_df)
+all_mag_df.to_csv(config.sfs_path / '{}_nonclonal_mags.csv'.format(config.databatch), index=True)

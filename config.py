@@ -22,7 +22,7 @@ identical_fraction_path = data_base_path / 'identical_fraction'
 
 # dRep path
 # drep_path = Path('/Users/Device6/Documents/Research/bgoodlab/microbiome_codiv/dRep_analysis')
-hgt_res_path = Path('/Users/Device6/Documents/Research/bgoodlab/microbiome_codiv/dRep_analysis/Global_HGT_v7.1.csv')
+hgt_res_path = Path('/Users/Device6/Documents/Research/bgoodlab/microbiome_codiv/dRep_analysis/Global_HGT_v7.2.csv')
 
 # close pair thresholds
 close_pair_div_ratio = 10

@@ -174,20 +174,23 @@ class SNVHelper:
         # TODO: implement by grouping the snvs by index and checking if there are only two alleles
         pass
 
-    def get_population_mask(self, pop_name):
+    def get_population_mask(self, pop_name, allowed_mags=None):
         # need MetadataHelper
         self.genome_names = self.syn_snvs.columns.values.tolist()
-        pops = np.array([self.metahelper.get_mag_pop(x) for x in self.genome_names])
-        return pops == pop_name
+        if allowed_mags is not None:
+            pop_mask = np.array([(self.metahelper.get_mag_pop(x) == pop_name) and (x in allowed_mags) for x in self.genome_names])
+        else:
+            pop_mask = np.array([self.metahelper.get_mag_pop(x) == pop_name for x in self.genome_names])
+        return pop_mask
     
     def get_population_snvs(self, pop_name):
         pop_mask = self.get_population_mask(pop_name)
         return self.syn_snvs.loc[:, pop_mask]
     
-    def compute_population_coverage(self, pop_name):
+    def compute_population_coverage(self, pop_name, allowed_mags=None):
         # default: computing for 4D core sites
         # return: DataFrame of num reference & alternate alleles for each snv
-        pop_mask = self.get_population_mask(pop_name)
+        pop_mask = self.get_population_mask(pop_name, allowed_mags)
         if pop_mask.sum() == 0:
             res = pd.DataFrame(index=self.syn_snvs.index)
             res['Ref count'] = 0
@@ -198,7 +201,7 @@ class SNVHelper:
         alt_counts = (pop_snvs==1).sum(axis=1)
         return pd.DataFrame({'Ref count': ref_counts, 'Alt count': alt_counts}, index=pop_snvs.index)
 
-    def save_dadi_data_dict(self, pops, output_path=None):
+    def save_dadi_data_dict(self, pops, allowed_mags=None, output_path=None):
         """
         Write the snps to a file in the format required by dadi
         # https://dadi.readthedocs.io/en/latest/user-guide/importing-data/
@@ -226,7 +229,7 @@ class SNVHelper:
         # calculating counts for snvs in each population
         snv_counts = {}
         for pop in pops:
-            snv_counts[pop] = self.compute_population_coverage(pop)
+            snv_counts[pop] = self.compute_population_coverage(pop, allowed_mags)
         
         # Save to file; iterating over snvs
         logging.info(f'Writing to file: {output_file}')

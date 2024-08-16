@@ -31,6 +31,44 @@ def split_mig_iso(params, ns):
 
     return fs
 
+def growth_mixed(params, ns):
+    """
+    Improved exp growth model that takes in rate directly
+    """
+    rate, T = params
+
+    nu_func = lambda t: [np.exp(rate * t)]
+    sts = moments.LinearSystem_1D.steady_state_1D(ns[0] + ns[1])
+    fs = moments.Spectrum(sts)
+    fs.integrate(nu_func, T, 0.01)
+
+    fs = moments.Manips.split_1D_to_2D(fs, ns[0], ns[1])
+    return fs
+
+def growth_split_mig(growth_param, params, ns, pop_ids=None):
+    if pop_ids is not None and len(pop_ids) != 2:
+        raise ValueError("pop_ids must have length 2")
+    
+    rate, T = growth_param 
+    Tsplit, m = params
+
+    nuB = 1
+    nu_anc = lambda t: [nuB * np.exp(rate * t / T)]
+    sts = moments.LinearSystem_1D.steady_state_1D(ns[0] + ns[1])
+    fs = moments.Spectrum(sts)
+    fs.integrate(nu_anc, T - Tsplit, dt_fac=0.01)
+    # we split the population
+    fs = moments.Manips.split_1D_to_2D(fs, ns[0], ns[1])
+    # size at split
+    nu0 = nu_anc(T - Tsplit)[0]
+    nu_func = lambda t: 2 * [nu0 * np.exp(rate * t / T)]
+    # continue to grow after split
+    fs.integrate(nu_func, Tsplit, m=np.array([[0, m], [m, 0]]))
+    fs.pop_ids = pop_ids
+    return fs
+
+def growth_split(growth_param, params, ns):
+    return growth_split_mig(growth_param, (params[0], 0), ns)
 
 """
 Wrapper functions for inferences
@@ -65,13 +103,13 @@ def fit_model(data, model_func, p_guess, lower_bound, upper_bound, mask_singleto
 def load_SFS(species, metadata, proj_ratio=0.9, focal_pops=['Hadza', 'Tsimane']):
     data_batch = metadata.data_batch
     mag_count_df = metadata.get_mag_counts(species)
-    # print(mag_count_df)
-
-    sfs_folder = config.sfs_path / data_batch
-
     # choosing a projection size; corresponding to a prevalence cutoff
     proj = mag_count_df.loc[focal_pops].values.astype(int) * proj_ratio
     proj = proj.astype(int)
+    return _load_SFS(species, proj, data_batch, focal_pops)
+
+def _load_SFS(species, proj, data_batch, focal_pops=['Hadza', 'Tsimane']):
+    sfs_folder = config.sfs_path / data_batch
 
     sfs_file = sfs_folder / f'{species}.snps.txt'
 

@@ -10,15 +10,18 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 import moments
 from utils import moments_utils, metadata_utils, snv_utils
+import config
 
 
 # TODO: set up a yml file for all these parameters
 # data related parameters
-data_batch = '240509'
-min_sample_size = 10
+data_batch = config.databatch
+min_sample_size = 30
 mask_singletons = True
 # focal_pops = ['Hadza', 'Tsimane']
-focal_pops = ['China', 'MetaHIT']
+# focal_pops = ['China', 'MetaHIT']
+# focal_pops = ['China', 'HMP']
+focal_pops = ['MetaHIT', 'HMP']
 # focal_pops = ['Nepal', 'MetaHIT']
 
 # set up model related parameters

@@ -1,4 +1,5 @@
 import pandas as pd
+import seaborn as sns
 
 import config
 
@@ -53,3 +54,16 @@ class MetadataHelper:
     def get_mags_pop_count(self, mags):
         pops = [self.get_mag_pop(mag) for mag in mags]
         return pd.Series(pops).value_counts()
+    
+    def filter_mags_by_pops(self, mags, pops):
+        return [mag for mag in mags if self.get_mag_pop(mag) in pops]
+    
+    def mag_to_pop_colors(self, mags):
+        pop_assignments = [self.get_mag_pop(x) for x in mags]
+        all_pops = self.get_all_pops()
+        palette = sns.color_palette("pastel", len(all_pops))  # You can choose different palettes
+        color_dict = {pop: color for pop, color in zip(all_pops, palette)}
+        # make paleofeces stand out more
+        color_dict['Paleofeces'] = 'black'
+        row_colors = [color_dict[pop] for pop in pop_assignments]
+        return row_colors
