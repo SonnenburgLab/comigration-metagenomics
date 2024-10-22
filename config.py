@@ -1,6 +1,4 @@
-import os
 from pathlib import Path
-import seaborn as sns
 
 data_base_path = Path('/Volumes/Botein/comigration_data/')
 snv_catalog_path = data_base_path / 'snv_catalogs'
@@ -31,7 +29,11 @@ close_pair_pi_threshold = 0.75 # similar to Liu Good 2024
 
 # color pallette for comparing populations
 all_comps = ['Tsimane-Tsimane', 'Hadza-Tsimane', 'Hadza-Hadza', 'China-HMP', 'China-China', 'HMP-HMP']
-color_dict = dict(zip(all_comps, sns.color_palette('pastel', n_colors=len(all_comps))))
+colors = ['#a1c9f4', '#ffb482', '#8de5a1', '#ff9f9b', '#d0bbff', '#debb9b']
+color_dict = dict(zip(all_comps, colors))
 
 # default databatch
 databatch = '240714'
+
+# cphmm result path
+cphmm_res_path = Path('/Volumes/Botein/comigration_data/close_pair_inference/')

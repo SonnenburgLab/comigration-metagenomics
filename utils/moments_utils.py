@@ -99,6 +99,23 @@ def fit_model(data, model_func, p_guess, lower_bound, upper_bound, mask_singleto
     ll = moments.Inference.ll(model_func(opt_params, data.sample_sizes)*refit_theta, data)
     return opt_params, refit_theta, uncerts, ll
 
+"""
+For loading data
+"""
+
+def proj_func(counts):
+    # for determining the number of samples to project to
+    return int(np.median(counts) * 0.95)
+
+def load_SFS_projection(species, proj_func=proj_func, sfs_folder=config.sfs_path / config.databatch, focal_pops=['Hadza', 'Tsimane']):
+    sfs_file = f'{sfs_folder}/{species}.snps.txt'
+    dd = dadi.Misc.make_data_dict(sfs_file)
+    hz_counts = [sum(dd[x]['calls'][focal_pops[0]]) for x in dd]
+    ts_counts = [sum(dd[x]['calls'][focal_pops[1]]) for x in dd]
+
+    proj = [proj_func(hz_counts), proj_func(ts_counts)]
+    data = moments.Spectrum.from_data_dict(dd, pop_ids=focal_pops, projections=proj, polarized=False)
+    return data
 
 def load_SFS(species, metadata, proj_ratio=0.9, focal_pops=['Hadza', 'Tsimane']):
     data_batch = metadata.data_batch

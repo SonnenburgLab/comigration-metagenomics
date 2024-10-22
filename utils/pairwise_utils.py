@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import scipy
+import pickle
 from scipy.cluster.hierarchy import linkage, fcluster
 from utils import metadata_utils
 
@@ -9,8 +10,8 @@ import config
 def load_hgt_res(hgt_res_path=config.hgt_res_path):
     hgt_res = pd.read_csv(hgt_res_path)
     hgt_res['species'] = hgt_res['name'].str.replace('_v7', '')
-    hgt_res['genome1'] = hgt_res['querry'].str.replace('\.fa', '')
-    hgt_res['genome2'] = hgt_res['reference'].str.replace('\.fa', '')
+    hgt_res['genome1'] = hgt_res['querry'].str.replace('.fa', '')
+    hgt_res['genome2'] = hgt_res['reference'].str.replace('.fa', '')
     return hgt_res
 
 def long_form_to_symmetric(df, row_name='genome1', col_name='genome2', val_name='div', diagonal_fill=0):
@@ -99,6 +100,9 @@ Current ideas as of 2024-07-14:
 - HGT_score: compare quantile of max_run to a reference length (e.g. 700bp)
 - long_run_length: simply the quantile length
 """
+def compute_L99(df, quantile=0.99):
+    l99 = df['max_run'].quantile(quantile, interpolation='higher')
+    return l99
 
 def HGT_score(df, quantile=0.99, ref_length=700):
     """
@@ -127,6 +131,9 @@ class SpeciesPairwiseHelper:
         self.hgt_summary = hgt_summary
         self.cluster_threshold = cluster_threshold
         self.clonal_clusters = self.get_clonal_clusters(self.cluster_threshold)
+        self.full_run_path = config.run_path / f'{self.species_name}__pairwise_runs.pkl'
+        with open(self.full_run_path, 'rb') as f:
+            self.all_runs = pickle.load(f)
 
     def get_ani_mat(self, pops=None):
         ani_mat = long_form_to_symmetric(self.hgt_summary, row_name='genome1', col_name='genome2', val_name='ani',
@@ -205,6 +212,14 @@ class SpeciesPairwiseHelper:
         """
         return filter_df_by_samples(summary, self.get_nonclonal_mags())
     
+    def get_pair_full_runs(self, mag1, mag2):
+        if (mag1, mag2) in self.all_runs:
+            return self.all_runs[(mag1, mag2)]
+        elif (mag2, mag1) in self.all_runs:
+            return self.all_runs[(mag2, mag1)]
+        else:
+            raise ValueError(f'Pairwise run not found for {mag1} and {mag2}')
+    
     def get_ANI_dist(self, pops):
         if pops is None:
             return self.hgt_summary['ani'].values
@@ -244,10 +259,10 @@ class PairwiseHelper:
         species_res = self.pairwise_summary[self.pairwise_summary['species'] == species_name]
         return species_res
     
-    def get_species_helper(self, species_name):
+    def get_species_helper(self, species_name, cluster_threshold=config.clonal_cluster_pi_threshold):
         species_hgt = self.hgt_summary[self.hgt_summary['species'] == species_name]
         species_run = self.get_species_pairwise_summary(species_name)
-        return SpeciesPairwiseHelper(species_name, species_run, species_hgt, metadata=self.metadata)
+        return SpeciesPairwiseHelper(species_name, species_run, species_hgt, metadata=self.metadata, cluster_threshold=cluster_threshold)
 
     def filter_close_pairs_by_div(self, species_res):
         average_div = species_res['div'].mean()
