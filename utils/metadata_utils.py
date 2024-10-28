@@ -56,7 +56,7 @@ class MetadataHelper:
     def filter_mags_by_pops(self, mags, pops):
         return [mag for mag in mags if self.get_mag_pop(mag) in pops]
     
-    def mag_to_pop_colors(self, mags, palette=None):
+    def mag_to_pop_colors(self, mags, palette=config.pop_colors):
         # e.g. use seaborn color palette
         # palette = sns.color_palette("pastel", len(all_pops))  # You can choose different palettes
         pop_assignments = [self.get_mag_pop(x) for x in mags]

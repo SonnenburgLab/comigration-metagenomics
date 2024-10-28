@@ -18,19 +18,26 @@ run_path = data_base_path / 'IBS_runs'
 # identical fraction path
 identical_fraction_path = data_base_path / 'identical_fraction'
 
+# files on my laptop
+project_path = Path('/Users/Device6/Documents/Research/bgoodlab/microbiome_codiv/comigration_metagenomics')
 # dRep path
-# drep_path = Path('/Users/Device6/Documents/Research/bgoodlab/microbiome_codiv/dRep_analysis')
 hgt_res_path = Path('/Users/Device6/Documents/Research/bgoodlab/microbiome_codiv/dRep_analysis/Global_HGT_v7.2.csv')
+# figure path
+fig_path = project_path / 'figs'
+# intermediate data path
+intermediate_data_path = project_path / 'dat'
 
 # close pair thresholds
 close_pair_div_ratio = 10
 clonal_cluster_pi_threshold = 0.2 # larger than 20% identical gene probably have clonal background
 close_pair_pi_threshold = 0.75 # similar to Liu Good 2024
 
-# color pallette for comparing populations
+# color palette for comparing populations
 all_comps = ['Tsimane-Tsimane', 'Hadza-Tsimane', 'Hadza-Hadza', 'China-HMP', 'China-China', 'HMP-HMP']
 colors = ['#a1c9f4', '#ffb482', '#8de5a1', '#ff9f9b', '#d0bbff', '#debb9b']
 color_dict = dict(zip(all_comps, colors))
+# color palette for 7 populations
+pop_colors = ['#a1c9f4', '#ffb482', '#8de5a1', '#ff9f9b', '#d0bbff', '#debb9b', '#fffea3']
 
 # default databatch
 databatch = '240714'

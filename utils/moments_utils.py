@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 import demes
 import moments
@@ -174,3 +175,146 @@ def rescale_time(T, theta, num_sites, mu=4.08e-10, gen_per_day=1):
     t_gen = T * N_anc
     t_years = t_gen / (365 * gen_per_day)
     return t_years
+
+
+"""
+Functions for analyzing fitted models
+"""
+
+# sfs_folder = '/Users/Device6/Documents/Research/bgoodlab/microbiome_codiv/comigration_metagenomics/dat/240801_dadi_dict'
+def prep_model(result_row, model_func, data):
+    """
+    Take the result row from the csv of inferred model parameters
+    and simulate SFS under the demographic model
+
+    Needs data to infer the optimal theta for comparison
+    """
+    params = result_row[['nu1', 'nu2', 'T', 'm']]
+    theta = result_row['theta']
+    model = model_func(params, data.sample_sizes)
+    data.mask[:, 1] = True
+    data.mask[1, :] = True
+    theta = moments.Inference.optimal_sfs_scaling(model, data)
+    model = model * theta
+    model = model.fold()
+    data.mask[:, 1] = False
+    data.mask[1, :] = False
+    return model
+
+def prep_model_unscaled(result_row, model_func, sample_sizes=(100, 100)):
+    params = result_row[['nu1', 'nu2', 'T', 'm']]
+    theta = result_row['theta']
+    model = model_func(params, sample_sizes)
+    model = model.fold()
+    return model
+
+def prep_model_neutral(fs):
+    """
+    Prepare the neutral single pop SFS that matches the sample size and theta
+    of observed SFS
+    """
+    model = moments.Demographics1D.snm(fs.sample_sizes)
+    fs.mask[1] = True
+    opt_theta = moments.Inference.optimal_sfs_scaling(model, fs)
+    model = model * opt_theta
+    model = model.fold()
+    fs.mask[1] = False
+    return model
+
+"""
+Various ways of parsing the saved SFS data
+"""
+
+def load_raw_SFS(species, proj_func, sfs_folder=config.sfs_path / config.databatch, focal_pops=['Hadza', 'Tsimane']):
+    sfs_file = f'{sfs_folder}/{species}.snps.txt'
+    dd = dadi.Misc.make_data_dict(sfs_file)
+    hz_counts = [sum(dd[x]['calls'][focal_pops[0]]) for x in dd]
+    ts_counts = [sum(dd[x]['calls'][focal_pops[1]]) for x in dd]
+
+    proj = [proj_func(hz_counts), proj_func(ts_counts)]
+    print("Projection: ", proj)
+    data = moments.Spectrum.from_data_dict(dd, pop_ids=focal_pops, projections=proj, polarized=False)
+    return data
+
+def load_raw_SFS_proj(species, proj, sfs_folder=config.sfs_path / config.databatch, focal_pops=['Hadza', 'Tsimane']):
+    sfs_file = f'{sfs_folder}/{species}.snps.txt'
+    dd = dadi.Misc.make_data_dict(sfs_file)
+
+    data = moments.Spectrum.from_data_dict(dd, pop_ids=focal_pops, projections=proj, polarized=False)
+    return data
+
+def load_sfs_counts(species, sfs_folder=config.sfs_path / config.databatch, pops=['Hadza', 'Tsimane']):
+    # loading the raw counts from dadi dicts
+    sfs_file = f'{sfs_folder}/{species}.snps.txt'
+    dd = dadi.Misc.make_data_dict(sfs_file)
+
+    all_counts = []
+    snv_ids = []
+    for snv in dd:
+        snv_ids.append(snv)
+        snv_dat = []
+        for pop in pops:
+            pop_dat = dd[snv]['calls'][pop]
+            snv_dat.append(pop_dat[0])
+            snv_dat.append(pop_dat[1])
+        all_counts.append(snv_dat)
+
+    all_counts = np.array(all_counts)
+
+    sfs_dat = pd.DataFrame(all_counts, columns=['Hadza_ref', 'Hadza_alt', 'Tsimane_ref', 'Tsimane_alt'], index=snv_ids)
+
+    sfs_dat['Hadza_tot'] = sfs_dat['Hadza_alt'] + sfs_dat['Hadza_ref']
+    sfs_dat['Tsimane_tot'] = sfs_dat['Tsimane_alt'] + sfs_dat['Tsimane_ref']
+    sfs_dat['Total_ref'] = sfs_dat['Hadza_ref'] + sfs_dat['Tsimane_ref']
+    sfs_dat['Total_alt'] = sfs_dat['Hadza_alt'] + sfs_dat['Tsimane_alt']
+
+    # polarize to major allele
+    mask = sfs_dat['Total_ref']<sfs_dat['Total_alt']
+    rows = sfs_dat[mask].copy()
+    sfs_dat.loc[mask, 'Hadza_ref'] = rows['Hadza_alt']
+    sfs_dat.loc[mask, 'Hadza_alt'] = rows['Hadza_ref']
+    sfs_dat.loc[mask, 'Tsimane_ref'] = rows['Tsimane_alt']
+    sfs_dat.loc[mask, 'Tsimane_alt'] = rows['Tsimane_ref']
+    sfs_dat.loc[mask, 'Total_ref'] = rows['Total_alt']
+    sfs_dat.loc[mask, 'Total_alt'] = rows['Total_ref']
+
+    sfs_dat['Is_exclusive'] = (sfs_dat['Hadza_alt']==0) | (sfs_dat['Tsimane_alt']==0)
+
+    # drop monomorphic sites
+    sfs_dat = sfs_dat[sfs_dat['Total_alt']>0]
+    return sfs_dat
+
+def compute_well_mixed_likelihoods(sfs_dat):
+    sfs_dat['Likelihood'] = sfs_utils.well_mixed_likelihood(sfs_dat['Hadza_alt'], sfs_dat['Total_alt'], 
+                                sfs_dat['Hadza_ref']+sfs_dat['Hadza_alt'], sfs_dat['Tsimane_ref']+sfs_dat['Tsimane_alt'])
+
+    sfs_dat['Exclusive_snv_likelihood'] = sfs_utils.well_mixed_exclusive_snv_likelihood(sfs_dat['Total_alt'],
+                                            sfs_dat['Hadza_alt']+sfs_dat['Hadza_ref'], sfs_dat['Tsimane_alt'] + sfs_dat['Tsimane_ref'])
+    
+    return sfs_dat
+
+
+def compute_exclusive_likelihood_model(sfs_dat, model):
+    model_probs = pd.DataFrame(index=sfs_dat.index, columns=['Model_likelihood', 'Model_exclusive_likelihood'], dtype=float)
+    for sizes, grouped in sfs_dat.groupby(['Hadza_tot', 'Tsimane_tot']):
+        proj_model = moments.Spectrum.project(model, sizes)
+        for snv_id, row in grouped.iterrows():
+            # sizes = row['Hadza_tot'], row['Tsimane_tot']
+            k1 = row['Hadza_alt']
+            k2 = row['Tsimane_alt']
+            k_tot = row['Total_alt']
+            exclu_prob = 0
+            if k_tot < sizes[0]:
+                exclu_prob += proj_model[k_tot, 0]
+            if k_tot < sizes[1]:
+                exclu_prob += proj_model[0, k_tot]
+
+            # sum over all possible configurations that k1+k2 = k_tot for computing the total weight of observing k_tot
+            total_prob = 0
+            for i in range(0, k_tot+1):
+                if i < (sizes[0]+1) and (k_tot-i < sizes[1]+1) and k_tot-i >= 0:
+                    total_prob += proj_model[i, k_tot-i]
+
+            model_probs.loc[snv_id, 'Model_exclusive_likelihood'] = exclu_prob / total_prob
+            model_probs.loc[snv_id, 'Model_likelihood'] = proj_model[k1, k2] / total_prob
+    return model_probs

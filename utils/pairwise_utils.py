@@ -172,23 +172,55 @@ class SpeciesPairwiseHelper:
         clusters = cluster_close_pairs(symmetric_table, 1-threshold)
         return clusters
     
-    def get_clades(self, allowed_pops=None):
-        """
-        Cluster MAGs by synonymous divergence into two 
-        """
-        ani_mat = 1 - self.get_syn_div_mat()
+    def filter_ani_by_pops(self, ani_type=None, allowed_pops=None):
+        if ani_type=='ANI':
+            ani_mat = self.get_ani_mat()
+        elif ani_type=='syn_div':
+            ani_mat = 1 - self.get_syn_div_mat()
+        else:
+            # default to synoymous divergence of the core genome
+            ani_mat = 1 - self.get_syn_div_mat()
+        
         if allowed_pops is not None:
             row_mask = self.metadata.filter_mags_by_pops(ani_mat.index, allowed_pops)
             col_mask = self.metadata.filter_mags_by_pops(ani_mat.columns, allowed_pops)
             ani_mat = ani_mat.loc[row_mask, col_mask]
+        return ani_mat
+    
+    def get_clades(self, ani_type=None, allowed_pops=None):
+        """
+        Cluster MAGs by synonymous divergence into two 
+        """
+        ani_mat = self.filter_ani_by_pops(ani_type=ani_type, allowed_pops=allowed_pops)
         if ani_mat.shape[0] < 2:
             return None
         Z = linkage_clustering(1-ani_mat)
+        mag_names = ani_mat.index.values
+
         max_clusters = 2
         clusters = fcluster(Z, t=max_clusters, criterion='maxclust')
-        mags1 = ani_mat.index[clusters == 1]
-        mags2 = ani_mat.index[clusters == 2]
+        mags1 = mag_names[clusters == 1]
+        mags2 = mag_names[clusters == 2]
         return mags1, mags2
+    
+    def visualize_clades(self, ani_type=None, allowed_pops=None):
+        ani_mat = self.filter_ani_by_pops(ani_type=ani_type, allowed_pops=allowed_pops)
+        Z = linkage_clustering(1-ani_mat)
+        max_clusters = 2
+        clusters = fcluster(Z, t=max_clusters, criterion='maxclust')
+
+        colors = np.array(['red', 'blue'])
+        col_colors = colors[clusters-1]
+        row_colors = self.metadata.mag_to_pop_colors(ani_mat.index)
+
+        import seaborn as sns
+        g = sns.clustermap(ani_mat, row_linkage=Z, col_linkage=Z, row_colors=row_colors, col_colors=col_colors, 
+                           figsize=(10, 10), cbar_kws=dict(orientation='horizontal'))
+        x0, y0, w, h = g.cbar_pos
+        g.ax_cbar.set_position([x0, 0.95, g.ax_row_dendrogram.get_position().width * 0.9, 0.02])
+        g.ax_cbar.set_title(f'ANI')
+        return g
+
     
     def clade_statistics(self, mags1, mags2):
         # TODO: port over the codes for clade differentiation statistics
