@@ -115,6 +115,13 @@ def HGT_score(df, quantile=0.99, ref_length=700):
     hgt_score = np.log10(hgt_len / ref_length)
     return hgt_score
 
+def length_to_years(run, mu=4.08e-10, gen_per_day=1):
+    mu_per_year = mu * gen_per_day * 365
+    return 1 / run / mu_per_year
+
+def year_to_length(year, mu=4.08e-10, gen_per_day=1):
+    mu_per_year = mu * gen_per_day * 365
+    return 1 / year / mu_per_year
 
 def long_run_length(df, quantile=0.99):
     return df['max_run'].quantile(quantile, interpolation='higher')
@@ -172,6 +179,29 @@ class SpeciesPairwiseHelper:
         clusters = cluster_close_pairs(symmetric_table, 1-threshold)
         return clusters
     
+    def get_filtered_runs(self, perc_id_threshold=0.1):
+        df1 = self.run_summary.copy()
+        df2 = self.hgt_summary.copy()
+        df1['genome_pair'] = df1.apply(lambda row: tuple(sorted([row['genome1'], row['genome2']])), axis=1)
+        df2['genome_pair'] = df2.apply(lambda row: tuple(sorted([row['genome1'], row['genome2']])), axis=1)
+
+        # Drop the original genome1 and genome2 (optional)
+        df1 = df1.drop(columns=['genome1', 'genome2'])
+        df2 = df2.drop(columns=['genome1', 'genome2'])
+
+        # Now join the two dataframes on the 'genome_pair' column
+        merged_df = pd.merge(df1, df2, on='genome_pair', how='right')
+
+        merged_df[['genome1', 'genome2']] = pd.DataFrame(merged_df['genome_pair'].tolist(), index=merged_df.index)
+
+        # Drop the 'genome_pair' column (optional)
+        merged_df = merged_df.drop(columns=['genome_pair'])
+
+        # Set the new 'genome1' and 'genome2' columns as a MultiIndex
+        merged_df.set_index(['genome1', 'genome2'], inplace=True)
+        merged_df = merged_df[merged_df['perc_id'] < perc_id_threshold]
+        return merged_df
+
     def filter_ani_by_pops(self, ani_type=None, allowed_pops=None):
         if ani_type=='ANI':
             ani_mat = self.get_ani_mat()
@@ -198,7 +228,12 @@ class SpeciesPairwiseHelper:
         mag_names = ani_mat.index.values
 
         max_clusters = 2
-        clusters = fcluster(Z, t=max_clusters, criterion='maxclust')
+        distance_column = Z[:, 2]
+        # find two clusters with the biggest distance
+        clusters = fcluster(Z, t=max_clusters, criterion='maxclust_monocrit', monocrit=distance_column)
+
+        # maxclust only actually produces the same results?
+        # clusters = fcluster(Z, t=max_clusters, criterion='maxclust')
         mags1 = mag_names[clusters == 1]
         mags2 = mag_names[clusters == 2]
         return mags1, mags2

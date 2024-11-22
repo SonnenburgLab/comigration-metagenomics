@@ -13,11 +13,17 @@ from utils import moments_utils, metadata_utils, snv_utils
 import config
 
 
-# TODO: set up a yml file for all these parameters
+# some configurations
 # data related parameters
 data_batch = config.databatch
+sfs_dir = config.sfs_path / '240714_full'
 min_sample_size = 30
 mask_singletons = True
+# set up output files
+# output_pdf = 'figs/moments_split_mig_sfs.pdf'
+output_path = config.project_path / 'moments_out' / 'unclustered'
+output_path.mkdir(exist_ok=True)
+
 # focal_pops = ['Hadza', 'Tsimane']
 # focal_pops = ['China', 'MetaHIT']
 # focal_pops = ['China', 'HMP']
@@ -25,26 +31,20 @@ focal_pops = ['MetaHIT', 'HMP']
 # focal_pops = ['Nepal', 'MetaHIT']
 
 # set up model related parameters
-model = moments.Demographics2D.split_mig
-model_name = 'split_mig'
-# for split_mig: nu1, nu2, T, m
-param_names = ['nu1', 'nu2', 'T', 'm']
-p_guess = [2, 2, .1, 1]
-lower_bound = [1e-3, 1e-3, 1e-3, 1e-3]
-upper_bound = [100, 100, 20, 10]
+# model = moments.Demographics2D.split_mig
+# model_name = 'split_mig'
+# # for split_mig: nu1, nu2, T, m
+# param_names = ['nu1', 'nu2', 'T', 'm']
+# p_guess = [2, 2, .1, 1]
+# lower_bound = [1e-3, 1e-3, 1e-3, 1e-3]
+# upper_bound = [100, 100, 20, 10]
 
-# model = moments_utils.split_no_mig
-# model_name = 'split_no_mig'
-# param_names = ['nu1', 'nu2', 'T']
-# p_guess = [2, 2, .1]
-# lower_bound = [1e-3, 1e-3, 1e-3]
-# upper_bound = [100, 100, 20]
-
-# set up output files
-# output_pdf = 'figs/moments_split_mig_sfs.pdf'
-output_path = Path('moments_out')
-output_path.mkdir(exist_ok=True)
-output_file = output_path / f'{data_batch}__{model_name}__{focal_pops[0]}__{focal_pops[1]}.csv'
+model = moments_utils.split_no_mig
+model_name = 'split_no_mig'
+param_names = ['nu1', 'nu2', 'T']
+p_guess = [2, 2, .1]
+lower_bound = [1e-3, 1e-3, 1e-3]
+upper_bound = [100, 100, 20]
 
 # preparing the dataframe
 columns = ['species'] + param_names + ['theta', 'log_likelihood'] \
@@ -52,9 +52,9 @@ columns = ['species'] + param_names + ['theta', 'log_likelihood'] \
     + ['syn_genome_length', 'num_sites_passing_proj', 'num_syn_snps', 'num_focal_snvs', 'num_snps_after_projection'] \
     + [f'num_{pop}' for pop in focal_pops] \
     + [f'proj_{pop}' for pop in focal_pops]
-# result_df = pd.DataFrame(columns=columns)
 
 # write header to file
+output_file = output_path / f'{data_batch}__{model_name}__{focal_pops[0]}__{focal_pops[1]}.csv'
 output_file = open(output_file, 'w')
 output_file.write(','.join(columns) + '\n')
 
@@ -70,7 +70,7 @@ for species in full_species_list:
         logging.info(f"Skipping {species} due to low sample size")
         continue
 
-    res = moments_utils.load_SFS(species, metahelper, focal_pops=focal_pops)
+    res = moments_utils.load_SFS(species, metahelper, sfs_folder=sfs_dir, focal_pops=focal_pops)
     if res is None:
         logging.info(f"Skipping {species} due to insufficient data after projection")
         continue
@@ -114,5 +114,3 @@ for species in full_species_list:
     output_file.write(','.join(map(str, line_vals)) + '\n')
     output_file.flush()
 output_file.close()
-# result_df.to_csv(output_file, index=False)
-

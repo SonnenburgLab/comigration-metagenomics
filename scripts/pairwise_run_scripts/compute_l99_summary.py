@@ -3,14 +3,6 @@ import pandas as pd
 from utils import metadata_utils, pairwise_utils
 import config
 
-def length_to_years(run, mu=4.08e-10, gen_per_day=1):
-    mu_per_year = mu * gen_per_day * 365
-    return 1 / run / mu_per_year
-
-def year_to_length(year, mu=4.08e-10, gen_per_day=1):
-    mu_per_year = mu * gen_per_day * 365
-    return 1 / year / mu_per_year
-
 def get_filtered_runs(species_helper, perc_id_threshold=0.1):
     df1 = species_helper.run_summary.copy()
     df2 = species_helper.hgt_summary.copy()
@@ -41,7 +33,7 @@ species_list = metadata.get_species_list()
 
 pairwise_helper = pairwise_utils.PairwiseHelper(config.databatch)
 
-percid_threshold = 0.4
+percid_threshold = 0.8
 
 summaries = []
 for species in species_list:
@@ -54,16 +46,17 @@ for species in species_list:
     if dedup_summary.shape[0] == 0:
         print(f'No non-clonal pair for {species}')
         continue
-    num_comps = dedup_summary.groupby('comp', group_keys=False).apply(len, include_groups=False)
-    score = dedup_summary.groupby('comp', group_keys=False).apply(pairwise_utils.compute_L99, include_groups=False)
+    # might need to add include_groups=False depending on pandas version
+    num_comps = dedup_summary.groupby('comp', group_keys=False).apply(len)
+    score = dedup_summary.groupby('comp', group_keys=False).apply(pairwise_utils.compute_L99)
 
     # combine the two
     comp_summary = pd.concat([num_comps, score], axis=1)
     comp_summary.columns = ['num_comps', '99_perc_length']
-    comp_summary['implied_years'] = length_to_years(comp_summary['99_perc_length'])
+    comp_summary['implied_years'] = pairwise_utils.length_to_years(comp_summary['99_perc_length'])
     comp_summary.reset_index(inplace=True)
     comp_summary['species'] = species
     summaries.append(comp_summary)
 
 summary_df = pd.concat(summaries)
-summary_df.to_csv(f'/Users/Device6/Documents/Research/bgoodlab/microbiome_codiv/comigration_metagenomics/dat/241016__run_year_summary__percid={percid_threshold}__.tsv', index=False, sep='\t')
+summary_df.to_csv(config.intermediate_data_path / f'241016__run_year_summary__percid={percid_threshold}__.tsv', index=False, sep='\t')

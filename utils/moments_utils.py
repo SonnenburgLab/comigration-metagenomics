@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import scipy
 
 import demes
 import moments
@@ -109,6 +110,9 @@ def proj_func(counts):
     return int(np.median(counts) * 0.95)
 
 def load_SFS_projection(species, proj_func=proj_func, sfs_folder=config.sfs_path / config.databatch, focal_pops=['Hadza', 'Tsimane']):
+    """
+    Loading the SFS and projecting to a smaller size using a projection function
+    """
     sfs_file = f'{sfs_folder}/{species}.snps.txt'
     dd = dadi.Misc.make_data_dict(sfs_file)
     hz_counts = [sum(dd[x]['calls'][focal_pops[0]]) for x in dd]
@@ -118,17 +122,17 @@ def load_SFS_projection(species, proj_func=proj_func, sfs_folder=config.sfs_path
     data = moments.Spectrum.from_data_dict(dd, pop_ids=focal_pops, projections=proj, polarized=False)
     return data
 
-def load_SFS(species, metadata, proj_ratio=0.9, focal_pops=['Hadza', 'Tsimane']):
-    data_batch = metadata.data_batch
+def load_SFS(species, metadata, proj_ratio=0.9, sfs_folder=config.sfs_path / config.databatch, focal_pops=['Hadza', 'Tsimane']):
+    """
+    Loading the SFS while saving some stats about how many sites are included
+    """
     mag_count_df = metadata.get_mag_counts(species)
     # choosing a projection size; corresponding to a prevalence cutoff
     proj = mag_count_df.loc[focal_pops].values.astype(int) * proj_ratio
     proj = proj.astype(int)
-    return _load_SFS(species, proj, data_batch, focal_pops)
+    return _load_SFS(species, proj, sfs_folder=sfs_folder, focal_pops=focal_pops)
 
-def _load_SFS(species, proj, data_batch, focal_pops=['Hadza', 'Tsimane']):
-    sfs_folder = config.sfs_path / data_batch
-
+def _load_SFS(species, proj, sfs_folder=config.sfs_path / config.databatch, focal_pops=['Hadza', 'Tsimane']):
     sfs_file = sfs_folder / f'{species}.snps.txt'
 
     dd = dadi.Misc.make_data_dict(sfs_file)
@@ -182,14 +186,17 @@ Functions for analyzing fitted models
 """
 
 # sfs_folder = '/Users/Device6/Documents/Research/bgoodlab/microbiome_codiv/comigration_metagenomics/dat/240801_dadi_dict'
-def prep_model(result_row, model_func, data):
+def prep_model(result_row, model_func, data, model_name='split_mig'):
     """
     Take the result row from the csv of inferred model parameters
     and simulate SFS under the demographic model
 
     Needs data to infer the optimal theta for comparison
     """
-    params = result_row[['nu1', 'nu2', 'T', 'm']]
+    if model_name == 'split_mig':
+        params = result_row[['nu1', 'nu2', 'T', 'm']]
+    elif model_name == 'split_no_mig':
+        params = result_row[['nu1', 'nu2', 'T']]
     theta = result_row['theta']
     model = model_func(params, data.sample_sizes)
     data.mask[:, 1] = True
@@ -224,17 +231,6 @@ def prep_model_neutral(fs):
 """
 Various ways of parsing the saved SFS data
 """
-
-def load_raw_SFS(species, proj_func, sfs_folder=config.sfs_path / config.databatch, focal_pops=['Hadza', 'Tsimane']):
-    sfs_file = f'{sfs_folder}/{species}.snps.txt'
-    dd = dadi.Misc.make_data_dict(sfs_file)
-    hz_counts = [sum(dd[x]['calls'][focal_pops[0]]) for x in dd]
-    ts_counts = [sum(dd[x]['calls'][focal_pops[1]]) for x in dd]
-
-    proj = [proj_func(hz_counts), proj_func(ts_counts)]
-    print("Projection: ", proj)
-    data = moments.Spectrum.from_data_dict(dd, pop_ids=focal_pops, projections=proj, polarized=False)
-    return data
 
 def load_raw_SFS_proj(species, proj, sfs_folder=config.sfs_path / config.databatch, focal_pops=['Hadza', 'Tsimane']):
     sfs_file = f'{sfs_folder}/{species}.snps.txt'
@@ -284,11 +280,45 @@ def load_sfs_counts(species, sfs_folder=config.sfs_path / config.databatch, pops
     sfs_dat = sfs_dat[sfs_dat['Total_alt']>0]
     return sfs_dat
 
+
+"""
+Functions for computing likelihoods of private SNVs
+"""
+
+def well_mixed_likelihood(k1, k_tot, n1, n2):
+    """
+    The likelihood for how allele counts distribute in two populations
+    Assuming that the two populations are well mixed, so described by
+    a binomial distribution.
+
+    :param k1: number of observed alleles in population 1
+    :param k_tot: total number of observed alleles
+    :param n_h: total number of haplotypes in population 1
+    :param n_t: total number of haplotypes in population 2
+    """
+    n_tot = n1 + n2
+    p = n1 / n_tot
+    return scipy.stats.binom.pmf(k1, k_tot, p)
+
+
+def well_mixed_exclusive_snv_likelihood(k_tot, n1, n2):
+    """
+    The likelihood that all observed alleles are from a single population
+    Assuming that the two populations are well mixed, so described by
+    a binomial distribution.
+
+    :param k_tot: total number of observed alleles
+    :param n1: total number of haplotypes in population 1
+    :param n2: total number of haplotypes in population 2
+    """
+    return well_mixed_likelihood(k_tot, k_tot, n1, n2) + well_mixed_likelihood(0, k_tot, n1, n2)
+
+
 def compute_well_mixed_likelihoods(sfs_dat):
-    sfs_dat['Likelihood'] = sfs_utils.well_mixed_likelihood(sfs_dat['Hadza_alt'], sfs_dat['Total_alt'], 
+    sfs_dat['Likelihood'] = well_mixed_likelihood(sfs_dat['Hadza_alt'], sfs_dat['Total_alt'], 
                                 sfs_dat['Hadza_ref']+sfs_dat['Hadza_alt'], sfs_dat['Tsimane_ref']+sfs_dat['Tsimane_alt'])
 
-    sfs_dat['Exclusive_snv_likelihood'] = sfs_utils.well_mixed_exclusive_snv_likelihood(sfs_dat['Total_alt'],
+    sfs_dat['Exclusive_snv_likelihood'] = well_mixed_exclusive_snv_likelihood(sfs_dat['Total_alt'],
                                             sfs_dat['Hadza_alt']+sfs_dat['Hadza_ref'], sfs_dat['Tsimane_alt'] + sfs_dat['Tsimane_ref'])
     
     return sfs_dat
