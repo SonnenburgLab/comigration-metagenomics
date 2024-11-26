@@ -42,7 +42,7 @@ for species in species_list:
     if species_helper.run_summary.shape[0] == 0:
         print(f'No run data for {species}')
         continue
-    dedup_summary = get_filtered_runs(species_helper, perc_id_threshold=percid_threshold)
+    dedup_summary = species_helper.get_filtered_runs(perc_id_threshold=percid_threshold)
     if dedup_summary.shape[0] == 0:
         print(f'No non-clonal pair for {species}')
         continue

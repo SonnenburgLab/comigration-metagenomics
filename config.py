@@ -31,6 +31,7 @@ intermediate_data_path = project_path / 'dat'
 close_pair_div_ratio = 10
 clonal_cluster_pi_threshold = 0.2 # larger than 20% identical gene probably have clonal background
 close_pair_pi_threshold = 0.75 # similar to Liu Good 2024
+fig2_perc_id_threshold = 0.1
 
 # color palette for comparing populations
 all_comps = ['Tsimane-Tsimane', 'Hadza-Tsimane', 'Hadza-Hadza', 'China-HMP', 'China-China', 'HMP-HMP']
