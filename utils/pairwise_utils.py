@@ -104,6 +104,22 @@ def compute_L99(df, quantile=0.99):
     l99 = df['max_run'].quantile(quantile, interpolation='higher')
     return l99
 
+def _compute_L99_bootstrap(input_df, n_bootstrap=100):
+    bootstrap_scores = []
+    for _ in range(n_bootstrap):
+        # Resample rows with replacement
+        resampled_df = input_df.sample(n=len(input_df), replace=True)
+        bootstrap_scores.append(compute_L99(resampled_df))
+    return bootstrap_scores
+
+def compute_L99_bootstrap(summary, n_bootstrap=100):
+    bootstrap_df = pd.DataFrame()
+    for name, grouped in summary.groupby('comp', group_keys=False):
+        bootstrap_df[name] = _compute_L99_bootstrap(grouped, n_bootstrap)
+    bootstrap_df = bootstrap_df.T.reset_index(names='comp')
+    return bootstrap_df
+
+
 def HGT_score(df, quantile=0.99, ref_length=700):
     """
     Idea: take the distribution of max_runs, find the tail length at a certain quantile,
@@ -301,6 +317,19 @@ class SpeciesPairwiseHelper:
         mask1 = self.hgt_summary['genome1'].isin(mags1) & self.hgt_summary['genome2'].isin(mags2)
         mask2 = self.hgt_summary['genome1'].isin(mags2) & self.hgt_summary['genome2'].isin(mags1)
         return self.hgt_summary[mask1 | mask2]['ani'].values
+    
+    def get_between_pop_L99(self, pop1, pop2, perc_id_threshold=0.1):
+        if perc_id_threshold is None:
+            summary = self.run_summary
+        else:
+            summary = self.get_filtered_runs(perc_id_threshold)
+        mask1 = (summary['pop1']==pop1) & (summary['pop2']==pop2)
+        mask2 = (summary['pop1']==pop2) & (summary['pop2']==pop1)
+        filtered = summary[(mask1 | mask2)]
+        l99 = compute_L99(filtered)
+        num_pairs = len(filtered)
+        return l99, num_pairs
+
 
 class PairwiseHelper:
     """

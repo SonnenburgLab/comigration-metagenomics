@@ -33,6 +33,9 @@ clonal_cluster_pi_threshold = 0.2 # larger than 20% identical gene probably have
 close_pair_pi_threshold = 0.75 # similar to Liu Good 2024
 fig2_perc_id_threshold = 0.1
 
+# number of pairs to compute L99
+fig3_pair_threshold = 200
+
 # color palette for comparing populations
 all_comps = ['Tsimane-Tsimane', 'Hadza-Tsimane', 'Hadza-Hadza', 'China-HMP', 'China-China', 'HMP-HMP']
 colors = ['#a1c9f4', '#ffb482', '#8de5a1', '#ff9f9b', '#d0bbff', '#debb9b']

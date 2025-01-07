@@ -1,4 +1,5 @@
 import pandas as pd
+import time
 
 from utils import metadata_utils, pairwise_utils
 import config
@@ -26,6 +27,7 @@ def get_filtered_runs(species_helper, perc_id_threshold=0.1):
     merged_df = merged_df[merged_df['perc_id'] < perc_id_threshold]
     return merged_df
 
+start_time = time.time()
 
 metadata = metadata_utils.MetadataHelper(data_batch=config.databatch)
 
@@ -33,9 +35,11 @@ species_list = metadata.get_species_list()
 
 pairwise_helper = pairwise_utils.PairwiseHelper(config.databatch)
 
-percid_threshold = 0.8
+percid_threshold = config.fig2_perc_id_threshold
 
 summaries = []
+full_pair_results = []
+bootstrap_results = []
 for species in species_list:
     print(species)
     species_helper = pairwise_helper.get_species_helper(species, cluster_threshold=percid_threshold)
@@ -46,9 +50,14 @@ for species in species_list:
     if dedup_summary.shape[0] == 0:
         print(f'No non-clonal pair for {species}')
         continue
+    full_pair_results.append(dedup_summary)
     # might need to add include_groups=False depending on pandas version
     num_comps = dedup_summary.groupby('comp', group_keys=False).apply(len)
     score = dedup_summary.groupby('comp', group_keys=False).apply(pairwise_utils.compute_L99)
+
+    bootstrap_df = pairwise_utils.compute_L99_bootstrap(dedup_summary, n_bootstrap=100)
+    bootstrap_df['species'] = species
+    bootstrap_results.append(bootstrap_df)
 
     # combine the two
     comp_summary = pd.concat([num_comps, score], axis=1)
@@ -59,4 +68,12 @@ for species in species_list:
     summaries.append(comp_summary)
 
 summary_df = pd.concat(summaries)
-summary_df.to_csv(config.intermediate_data_path / f'241016__run_year_summary__percid={percid_threshold}__.tsv', index=False, sep='\t')
+summary_df.to_csv(config.intermediate_data_path / 'L99' / f'241016__run_year_summary__percid={percid_threshold}__.tsv', index=False, sep='\t')
+
+pairwise_runs = pd.concat(full_pair_results)
+pairwise_runs.to_csv(config.intermediate_data_path / 'L99' / f'241016__pairwise_max_runs__percid={percid_threshold}__.tsv', index=False, sep='\t')
+
+bootstrap_df = pd.concat(bootstrap_results)
+bootstrap_df.to_csv(config.intermediate_data_path / 'L99' / f'241016__bootstrap_results__percid={percid_threshold}__.tsv', index=False, sep='\t')
+
+print(f'Finished in {time.time() - start_time:.2f} seconds')
