@@ -24,6 +24,11 @@ project_path = Path('/Users/Device6/Documents/Research/bgoodlab/microbiome_codiv
 hgt_res_path = Path('/Users/Device6/Documents/Research/bgoodlab/microbiome_codiv/dRep_analysis/Global_HGT_v7.2.csv')
 # figure path
 fig_path = project_path / 'figs'
+# for supplementary writing
+supp_fig_path = Path('/Users/Device6/Documents/Research/bgoodlab/_drafts/microbiome_codiv/SI/figs')
+# supp tables
+supp_table_path = project_path / 'dat_supp'
+
 # intermediate data path
 intermediate_data_path = project_path / 'dat'
 

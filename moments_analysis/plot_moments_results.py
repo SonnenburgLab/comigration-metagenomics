@@ -5,9 +5,9 @@ import seaborn as sns
 
 import config
 
-# pops = ['Hadza', 'Tsimane']
-model_name = 'split_no_mig'
-pops = ['MetaHIT', 'HMP']
+pops = ['Hadza', 'Tsimane']
+model_name = 'split_mig'
+# pops = ['MetaHIT', 'HMP']
 popstr = ''.join(pops)
 moments_results = pd.read_csv(config.project_path / 'moments_analysis' / f'moments_results_{popstr}_{model_name}.csv', index_col=0)
 moments_figure_path = config.fig_path / '241118_moments'
@@ -35,15 +35,44 @@ print("Print {} passed residual filter".format(passed_species.shape[0]))
 ################################################################
 # first plot residual distribution
 ################################################################
-plt.figure(figsize=(1.5, 3))
-sns.boxplot(moments_results, y='mean_abs_resid', x='if_clade', hue='if_clade')
-num_false = sum(moments_results['if_clade']==False)
-num_true = sum(moments_results['if_clade']==True)
-plt.xticks([0, 1], ['False\n(n={})'.format(num_false), 'True\n(n={})'.format(num_true)])
-plt.legend().remove()
-plt.xlabel('')
-plt.title('Potential clade structure?', fontsize=10)
-plt.ylabel('Mean residual size')
+fig, axes = plt.subplots(1, 2, figsize=(5, 3),)  # Adjust width for better visibility
+plt.subplots_adjust(wspace=0.5)
+
+# Panel 1: Mean residual size
+sns.boxplot(
+    data=moments_results, 
+    y='mean_abs_resid', 
+    x='if_clade', 
+    hue='if_clade', 
+    ax=axes[0]
+)
+num_false = moments_results[moments_results['if_clade'] == False].shape[0]
+num_true = moments_results[moments_results['if_clade'] == True].shape[0]
+axes[0].set_xticks([0, 1])
+axes[0].set_xticklabels([f'False\n(n={num_false})', f'True\n(n={num_true})'])
+axes[0].legend().remove()
+axes[0].set_xlabel('')
+# axes[0].set_title('Mean Residual Size', fontsize=10)
+axes[0].set_ylabel('Mean residual size')
+
+# Panel 2: Split time (log scale)
+sns.boxplot(
+    data=moments_results, 
+    y='Tsplit', 
+    x='if_clade', 
+    hue='if_clade', 
+    ax=axes[1]
+)
+axes[1].set_yscale('log')  # Log scale for the y-axis
+axes[1].set_xticks([0, 1])
+axes[1].set_xticklabels([f'False\n(n={num_false})', f'True\n(n={num_true})'])
+axes[1].legend().remove()
+axes[1].set_xlabel('')
+# axes[1].set_title('Split Time (Years)', fontsize=10)
+axes[1].set_ylabel('Split time (years)')
+
+axes[0].set_xlabel("If clade structure")
+axes[1].set_xlabel("If clade structure")
 plt.savefig(moments_figure_path / f'residual_size_by_clades_{popstr}_{model_name}.pdf', bbox_inches='tight')
 plt.close()
 
@@ -110,3 +139,11 @@ plt.gca().set_yticklabels(['10,000', '100,000', '1,000,000'])
 plt.xlim(-1, max(bacterial_locs)+1)
 plt.savefig(moments_figure_path / f'split_time_values_{popstr}_{model_name}.pdf', bbox_inches='tight')
 plt.close()
+
+# finally, save the moments results to supp table
+# renaming some columns
+plot_results = plot_results.rename(columns={'uncert_nu1': 'nu1_std', 'uncert_nu2': 'nu2_std', 'uncert_T': 'T_std', 'uncert_m': 'm_std','uncert_theta': 'theta_std', 'num_Hadza': 'num_Hadza_MAGs', 'num_Tsimane': 'num_Tsimane_MAGs', 'proj_Hadza': 'Hadza_projection', 'proj_Tsimane': 'Tsimane_projection', 'syn_genome_length': 'num_total_syn_sites', 'Tsplit': 'Tsplit (yr)', 'Tsplit_uncert': 'Tsplit_std (yr)'})
+
+columns_to_keep = ['nu1', 'nu1_std', 'nu2', 'nu2_std', 'T', 'T_std', 'm', 'm_std', 'theta', 'theta_std', 'num_Hadza_MAGs', 'num_Tsimane_MAGs', 'Hadza_projection', 'Tsimane_projection', 'num_total_syn_sites', 'num_sites_passing_proj', 'Tsplit (yr)', 'Tsplit_std (yr)']
+plot_results = plot_results[columns_to_keep]
+plot_results.to_csv(config.supp_table_path / f'supp_moments_results_{popstr}_{model_name}.tsv', sep='\t')

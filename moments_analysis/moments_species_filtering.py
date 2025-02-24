@@ -12,7 +12,8 @@ def filter_species_for_pops(pops=['Hadza', 'Tsimane'], model_name='split_mig'):
     moments_species = pd.read_csv(config.intermediate_data_path / 'moments_species_clades_{}.csv'.format(popstr), index_col=0)
 
     # loading demographic inference results
-    moment_results = pd.read_csv(config.project_path / 'moments_out' / 'unclustered' / '240714__{}__{}__{}.csv'.format(model_name, pops[0], pops[1]))
+    # moment_results = pd.read_csv(config.project_path / 'moments_out' / 'unclustered' / '240714__{}__{}__{}.csv'.format(model_name, pops[0], pops[1]))
+    moment_results = pd.read_csv(config.project_path / 'moments_out' / '240714__{}__{}__{}.csv'.format(model_name, pops[0], pops[1]))
     moment_results.set_index('species', inplace=True)
 
     # use mutation rate to translate scaled time to years
@@ -66,6 +67,6 @@ def filter_species_for_pops(pops=['Hadza', 'Tsimane'], model_name='split_mig'):
 
 
 if __name__ == '__main__':
-    # filter_species_for_pops(pops=['Hadza', 'Tsimane'], model_name='split_no_mig')
-    filter_species_for_pops(pops=['MetaHIT', 'HMP'], model_name='split_no_mig')
+    filter_species_for_pops(pops=['Hadza', 'Tsimane'], model_name='split_mig')
+    # filter_species_for_pops(pops=['MetaHIT', 'HMP'], model_name='split_no_mig')
     print("Done!")

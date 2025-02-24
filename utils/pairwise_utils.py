@@ -100,9 +100,19 @@ Current ideas as of 2024-07-14:
 - HGT_score: compare quantile of max_run to a reference length (e.g. 700bp)
 - long_run_length: simply the quantile length
 """
-def compute_L99(df, quantile=0.99):
-    l99 = df['max_run'].quantile(quantile, interpolation='higher')
+def compute_L99(df, val_name='max_run', quantile=0.99):
+    l99 = df[val_name].quantile(quantile, interpolation='higher')
     return l99
+
+def compute_L99_resampled(df, val_name='max_run', n_bootstrap=100, n_resample=None):
+    if n_resample is None:
+        n_resample = len(df)
+    bootstrap_scores = []
+    for _ in range(n_bootstrap):
+        # Resample rows with replacement
+        resampled_df = df.sample(n=n_resample, replace=True)
+        bootstrap_scores.append(compute_L99(resampled_df, val_name=val_name))
+    return bootstrap_scores
 
 def _compute_L99_bootstrap(input_df, n_bootstrap=100):
     bootstrap_scores = []

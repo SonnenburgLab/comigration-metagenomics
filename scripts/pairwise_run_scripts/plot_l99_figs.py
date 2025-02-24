@@ -5,7 +5,7 @@ import numpy as np
 
 import config
 
-percid_threshold = 0.2
+percid_threshold = 0.1
 comp_filter = 200
 
 run_summary = pd.read_csv(config.intermediate_data_path / f'241016__run_year_summary__percid={percid_threshold}__.tsv', sep='\t')
@@ -124,7 +124,13 @@ plt.close()
 ####### within pop pair plots #######
 pivot_summary = run_summary.pivot_table(index='species', columns='comp', values='99_perc_length')
 allowed_comps = ['Hadza-Hadza', 'Tsimane-Tsimane', 'China-China', 'HMP-HMP', 'MetaHIT-MetaHIT']
+name_map = {'Hadza-Hadza': 'Hadza',
+            'Tsimane-Tsimane': 'Tsimane',
+            'China-China': 'E. Asia',
+            'HMP-HMP': 'N. America',
+            'MetaHIT-MetaHIT': 'Europe'}
 pivot_summary = pivot_summary[allowed_comps]
+pivot_summary.columns = [name_map[col] for col in pivot_summary.columns]
 
 grid = sns.pairplot(data=pivot_summary, corner=True, diag_kind=None, height=1.5)
 for i in range(5):
@@ -136,6 +142,10 @@ for i in range(5):
         ax.set_ylim(100, 10000)
         ax.set_xscale('log')
         ax.set_yscale('log')
+        plt.setp(ax.get_xticklabels(), fontsize=6)
+        plt.setp(ax.get_yticklabels(), fontsize=6)
     grid.axes[i, i].set_visible(False)
 grid.savefig(config.fig_path / '241118_l99_plots' / 'pairplot_perc={}.pdf'.format(percid_threshold), bbox_inches='tight')
+grid.savefig(config.supp_fig_path / 'L99_pairplot.pdf', bbox_inches='tight')
+
 plt.close()

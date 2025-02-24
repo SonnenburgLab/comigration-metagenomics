@@ -348,3 +348,13 @@ def compute_exclusive_likelihood_model(sfs_dat, model):
             model_probs.loc[snv_id, 'Model_exclusive_likelihood'] = exclu_prob / total_prob
             model_probs.loc[snv_id, 'Model_likelihood'] = proj_model[k1, k2] / total_prob
     return model_probs
+
+
+"""Miscellaneous functions"""
+
+def load_moments_results(result_path):
+    moment_results = pd.read_csv(result_path)
+    moment_results.set_index('species', inplace=True)
+    moment_results['Tsplit'] = rescale_time(moment_results['T'], moment_results['theta'], moment_results['num_sites_passing_proj'])
+    moment_results['Tsplit_uncert'] = rescale_time(moment_results['uncert_T'], moment_results['theta'], moment_results['num_sites_passing_proj'])
+    return moment_results
