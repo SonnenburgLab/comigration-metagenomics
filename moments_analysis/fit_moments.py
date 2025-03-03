@@ -16,7 +16,7 @@ import config
 # some configurations
 # data related parameters
 data_batch = config.databatch
-sfs_dir = config.sfs_path / '240714_full'
+sfs_dir = config.sfs_path / '{}_full'.format(data_batch)
 min_sample_size = 30
 mask_singletons = True
 # set up output files
@@ -24,20 +24,20 @@ mask_singletons = True
 output_path = config.project_path / 'moments_out' / 'unclustered'
 output_path.mkdir(exist_ok=True)
 
-# focal_pops = ['Hadza', 'Tsimane']
+focal_pops = ['Hadza', 'Tsimane']
 # focal_pops = ['China', 'MetaHIT']
 # focal_pops = ['China', 'HMP']
-focal_pops = ['MetaHIT', 'HMP']
+# focal_pops = ['MetaHIT', 'HMP']
 # focal_pops = ['Nepal', 'MetaHIT']
 
 # set up model related parameters
-# model = moments.Demographics2D.split_mig
-# model_name = 'split_mig'
-# # for split_mig: nu1, nu2, T, m
-# param_names = ['nu1', 'nu2', 'T', 'm']
-# p_guess = [2, 2, .1, 1]
-# lower_bound = [1e-3, 1e-3, 1e-3, 1e-3]
-# upper_bound = [100, 100, 20, 10]
+model = moments.Demographics2D.split_mig
+model_name = 'split_mig'
+# for split_mig: nu1, nu2, T, m
+param_names = ['nu1', 'nu2', 'T', 'm']
+p_guess = [2, 2, .1, 1]
+lower_bound = [1e-3, 1e-3, 1e-3, 1e-3]
+upper_bound = [100, 100, 20, 10]
 
 model = moments_utils.split_no_mig
 model_name = 'split_no_mig'

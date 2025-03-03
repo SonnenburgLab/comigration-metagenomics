@@ -23,10 +23,11 @@ def find_clade_for_pops(genome_cutoff=30, pops=['Hadza', 'Tsimane']):
     passed_species = passed.index.values
 
     pw_helper = pairwise_utils.PairwiseHelper(databatch=config.databatch)
+    output_path = config.project_path / 'moments_out'
 
     clade_species = []
     popstr = ''.join(pops)
-    with PdfPages(config.project_path / 'moments_analysis' / 'species_with_clades_div_heatmap_{}.pdf'.format(popstr)) as pdf:
+    with PdfPages(output_path / '{}_species_with_clades_div_heatmap_{}.pdf'.format(config.databatch, popstr)) as pdf:
         for species in passed_species:
             species_helper = pw_helper.get_species_helper(species_name=species)
             clade1, clade2 = species_helper.get_clades(ani_type='ANI', allowed_pops=pops)
@@ -47,10 +48,10 @@ def find_clade_for_pops(genome_cutoff=30, pops=['Hadza', 'Tsimane']):
             clade_species.append(species)
 
     passed['if_clade'] = passed.index.isin(clade_species)
-    passed.to_csv(config.intermediate_data_path / 'moments_species_clades_{}.csv'.format(popstr))
+    passed.to_csv(config.intermediate_data_path / '{}_moments_species_clades_{}.csv'.format(config.databatch, popstr))
 
 
 if __name__ == '__main__':
-    find_clade_for_pops()
-    find_clade_for_pops(pops=['MetaHIT', 'HMP'])
+    find_clade_for_pops(pops=['Hadza', 'Tsimane'])
+    # find_clade_for_pops(pops=['MetaHIT', 'HMP'])
     print("Done!")
