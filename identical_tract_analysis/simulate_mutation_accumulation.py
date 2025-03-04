@@ -57,12 +57,12 @@ def get_passed_species_full_within():
     print("Total {} species and {} pairs".format(len(passed_within_pairs), passed_within_pairs.sum()))
     return passed_within_pairs.index
 
-def rate_to_years(rate, mut_rate=4.08e-10, gen_per_day=1):
-    mut_per_year = mut_rate * 365 * gen_per_day
+def rate_to_years(rate, mut_rate=config.mut_rate, gen_per_day=config.gen_per_day, day_per_year=config.day_per_year):
+    mut_per_year = mut_rate * day_per_year * gen_per_day
     return rate / mut_per_year
 
-def years_to_rate(years, mut_rate=4.08e-10, gen_per_day=1):
-    mut_per_year = mut_rate * 365 * gen_per_day
+def years_to_rate(years, mut_rate=config.mut_rate, gen_per_day=config.gen_per_day, day_per_year=config.day_per_year):
+    mut_per_year = mut_rate * day_per_year * gen_per_day
     return mut_per_year * years
 
 def simulate_one_species(species_helper, focal_pops, years_to_sim, num_pairs=500):

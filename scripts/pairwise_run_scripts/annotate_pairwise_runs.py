@@ -1,3 +1,6 @@
+"""
+03/03/2025 -- moved most of the function to prepare_max_run_df.py -- probably can delete this script
+"""
 import pandas as pd
 import pickle
 import numpy as np

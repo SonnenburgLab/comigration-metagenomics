@@ -369,8 +369,8 @@ def fit_model(data, pts_l, model=no_mig, p0=[10, 10, 1], upper_bound=[100, 100, 
     return popt[0]
 
 
-def rescale_time(T, theta, num_sites, mu=4.08e-10, gen_per_day=1):
-    N_anc = theta / num_sites / mu / 2
-    t_gen = T * N_anc
-    t_years = t_gen / (365 * gen_per_day)
-    return t_years
+# def rescale_time(T, theta, num_sites, mu=4.08e-10, gen_per_day=1):
+#     N_anc = theta / num_sites / mu / 2
+#     t_gen = T * N_anc
+#     t_years = t_gen / (365 * gen_per_day)
+#     return t_years

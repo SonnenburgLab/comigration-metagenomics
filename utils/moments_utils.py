@@ -109,7 +109,7 @@ def proj_func(counts):
     # for determining the number of samples to project to
     return int(np.median(counts) * 0.95)
 
-def load_SFS_projection(species, proj_func=proj_func, sfs_folder=config.sfs_path / config.databatch, focal_pops=['Hadza', 'Tsimane']):
+def load_SFS_projection(species, proj_func=proj_func, sfs_folder=config.sfs_path / config.sfs_batch, focal_pops=['Hadza', 'Tsimane']):
     """
     Loading the SFS and projecting to a smaller size using a projection function
     """
@@ -122,7 +122,7 @@ def load_SFS_projection(species, proj_func=proj_func, sfs_folder=config.sfs_path
     data = moments.Spectrum.from_data_dict(dd, pop_ids=focal_pops, projections=proj, polarized=False)
     return data
 
-def load_SFS(species, metadata, proj_ratio=0.9, sfs_folder=config.sfs_path / config.databatch, focal_pops=['Hadza', 'Tsimane']):
+def load_SFS(species, metadata, proj_ratio=0.9, sfs_folder=config.sfs_path / config.sfs_batch, focal_pops=['Hadza', 'Tsimane']):
     """
     Loading the SFS while saving some stats about how many sites are included
     """
@@ -132,7 +132,7 @@ def load_SFS(species, metadata, proj_ratio=0.9, sfs_folder=config.sfs_path / con
     proj = proj.astype(int)
     return _load_SFS(species, proj, sfs_folder=sfs_folder, focal_pops=focal_pops)
 
-def _load_SFS(species, proj, sfs_folder=config.sfs_path / config.databatch, focal_pops=['Hadza', 'Tsimane']):
+def _load_SFS(species, proj, sfs_folder=config.sfs_path / config.sfs_batch, focal_pops=['Hadza', 'Tsimane']):
     sfs_file = sfs_folder / f'{species}.snps.txt'
 
     dd = dadi.Misc.make_data_dict(sfs_file)
@@ -171,13 +171,13 @@ def count_segragating_snvs_in_pops(data_dict, pops):
 #     sfs_file = config.sfs_path / data_batch / f'{species}.snps.txt'
 #     dd = dadi.Misc.make_data_dict(sfs_file)
 
-def rescale_time(T, theta, num_sites, mu=4.08e-10, gen_per_day=1):
+def rescale_time(T, theta, num_sites, mut_rate=config.mut_rate, gen_per_day=config.gen_per_day, day_per_year=config.day_per_year):
     """
     In the model, theta=4 * N_ref * mu, while the unit of T is 2 * N_ref
     """
-    N_anc = theta / num_sites / mu / 2
+    N_anc = theta / num_sites / mut_rate / 2
     t_gen = T * N_anc
-    t_years = t_gen / (365 * gen_per_day)
+    t_years = t_gen / (day_per_year * gen_per_day)
     return t_years
 
 
@@ -358,3 +358,10 @@ def load_moments_results(result_path):
     moment_results['Tsplit'] = rescale_time(moment_results['T'], moment_results['theta'], moment_results['num_sites_passing_proj'])
     moment_results['Tsplit_uncert'] = rescale_time(moment_results['uncert_T'], moment_results['theta'], moment_results['num_sites_passing_proj'])
     return moment_results
+
+
+def load_best_fit_moments_results(inferred_path):
+    moments_results = pd.read_csv(inferred_path)
+    # take the best fit per species
+    moments_results = moments_results.sort_values('log_likelihood', ascending=False).groupby('species').first()
+    return moments_results

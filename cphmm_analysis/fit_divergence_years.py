@@ -21,8 +21,8 @@ def fit_perc_id_trend(perc_id_vals, clonal_years):
     year_at_10perc = popt[0] * 0.9
     return year_at_10perc, popt[0]
 
-def div_to_years(div, gen_per_day=1, mut_rate=4.08e-10):
-    mut_per_year = mut_rate * 365 * gen_per_day
+def div_to_years(div, gen_per_day=config.gen_per_day, mut_rate=config.mut_rate, day_per_year=config.day_per_year):
+    mut_per_year = mut_rate * day_per_year * gen_per_day
     return div / mut_per_year
 
 infer_summary = pd.read_csv(config.cphmm_res_path / '241022_inference_summary_full.tsv', sep='\t')

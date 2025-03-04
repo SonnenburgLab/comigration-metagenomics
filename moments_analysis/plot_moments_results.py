@@ -9,8 +9,11 @@ pops = ['Hadza', 'Tsimane']
 model_name = 'split_mig'
 # pops = ['MetaHIT', 'HMP']
 popstr = ''.join(pops)
-moments_results = pd.read_csv(config.project_path / 'moments_analysis' / f'moments_results_{popstr}_{model_name}.csv', index_col=0)
-moments_figure_path = config.fig_path / '241118_moments'
+# moments_results = pd.read_csv(config.moments_path / f'moments_results_{popstr}_{model_name}.csv', index_col=0)
+moments_results = pd.read_csv(config.moments_path / 'moments_dat' / f'moments_final_res_full.csv', index_col=0)
+moments_results = moments_results.sort_values(['if_clade', 'mean_abs_resid'], ascending=True)
+
+moments_figure_path = config.moments_path / 'moments_figures'
 moments_figure_path.mkdir(exist_ok=True)
 
 print("Print {} passed genome filter".format(moments_results.shape[0]))
@@ -84,7 +87,7 @@ plt.figure(figsize=(6, 2))
 to_plot = passed_species_after_uncert
 to_plot['passed'] = to_plot['mean_abs_resid'] < 1.5
 
-sns.barplot(data=to_plot, x='species_names', y='mean_abs_resid', hue='passed',
+sns.barplot(data=to_plot, x='species', y='mean_abs_resid', hue='passed',
             linewidth=1.5, edgecolor=".5", palette=['white', 'tab:blue'])
 plt.legend().remove()
 plt.axhline(1.5, color='k', linestyle='--')
@@ -142,8 +145,8 @@ plt.close()
 
 # finally, save the moments results to supp table
 # renaming some columns
-plot_results = plot_results.rename(columns={'uncert_nu1': 'nu1_std', 'uncert_nu2': 'nu2_std', 'uncert_T': 'T_std', 'uncert_m': 'm_std','uncert_theta': 'theta_std', 'num_Hadza': 'num_Hadza_MAGs', 'num_Tsimane': 'num_Tsimane_MAGs', 'proj_Hadza': 'Hadza_projection', 'proj_Tsimane': 'Tsimane_projection', 'syn_genome_length': 'num_total_syn_sites', 'Tsplit': 'Tsplit (yr)', 'Tsplit_uncert': 'Tsplit_std (yr)'})
+# plot_results = plot_results.rename(columns={'uncert_nu1': 'nu1_std', 'uncert_nu2': 'nu2_std', 'uncert_T': 'T_std', 'uncert_m': 'm_std','uncert_theta': 'theta_std', 'num_Hadza': 'num_Hadza_MAGs', 'num_Tsimane': 'num_Tsimane_MAGs', 'proj_Hadza': 'Hadza_projection', 'proj_Tsimane': 'Tsimane_projection', 'syn_genome_length': 'num_total_syn_sites', 'Tsplit': 'Tsplit (yr)', 'Tsplit_uncert': 'Tsplit_std (yr)'})
 
-columns_to_keep = ['nu1', 'nu1_std', 'nu2', 'nu2_std', 'T', 'T_std', 'm', 'm_std', 'theta', 'theta_std', 'num_Hadza_MAGs', 'num_Tsimane_MAGs', 'Hadza_projection', 'Tsimane_projection', 'num_total_syn_sites', 'num_sites_passing_proj', 'Tsplit (yr)', 'Tsplit_std (yr)']
-plot_results = plot_results[columns_to_keep]
-plot_results.to_csv(config.supp_table_path / f'supp_moments_results_{popstr}_{model_name}.tsv', sep='\t')
+# columns_to_keep = ['nu1', 'nu1_std', 'nu2', 'nu2_std', 'T', 'T_std', 'm', 'm_std', 'theta', 'theta_std', 'num_Hadza_MAGs', 'num_Tsimane_MAGs', 'Hadza_projection', 'Tsimane_projection', 'num_total_syn_sites', 'num_sites_passing_proj', 'Tsplit (yr)', 'Tsplit_std (yr)']
+# plot_results = plot_results[columns_to_keep]
+# plot_results.to_csv(config.supp_table_path / f'supp_moments_results_{popstr}_{model_name}.tsv', sep='\t')

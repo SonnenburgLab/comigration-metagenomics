@@ -4,11 +4,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import config
 
-def div_to_years(div, gen_per_day=1, mut_rate=4.08e-10):
-    mut_per_year = 2 * mut_rate * 365 * gen_per_day
+def div_to_years(div, gen_per_day=config.gen_per_day, mut_rate=config.mut_rate, day_per_year=config.day_per_year):
+    mut_per_year = 2 * mut_rate * day_per_year * gen_per_day
     return div / mut_per_year
 
 # combine the perc id data
+# TODO haven't cleaned this up yet
 from utils import pairwise_utils
 pairwise_helper = pairwise_utils.PairwiseHelper(databatch=config.databatch)
 drep_summary = pairwise_helper.hgt_summary[pairwise_helper.hgt_summary['species'].isin(infer_summary['species'].unique())]
