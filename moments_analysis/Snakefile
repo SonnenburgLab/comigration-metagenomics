@@ -1,0 +1,55 @@
+SAMPLES = ["Hadza", "Tsimane"]
+MODEL = "split_mig"
+SFS_BATCH = "240714_full"
+
+rule all:
+    input:
+        f"moments_dat/{SFS_BATCH}__{MODEL}__{SAMPLES[0]}__{SAMPLES[1]}_full.csv",
+        f"moments_dat/{SFS_BATCH}__{MODEL}__{SAMPLES[0]}__{SAMPLES[1]}_residuals.csv",
+        f"moments_dat/{SFS_BATCH}__{MODEL}__{SAMPLES[0]}__{SAMPLES[1]}_cleaned.csv",
+        f"moments_figures/{SFS_BATCH}_full_sfs.pdf",
+        f"moments_figures/{SFS_BATCH}_residual_size_by_clades_{''.join(SAMPLES)}_{MODEL}.pdf",
+        f"moments_figures/{SFS_BATCH}_residual_size_by_species_{''.join(SAMPLES)}_{MODEL}.pdf",
+        f"moments_figures/{SFS_BATCH}_split_time_values_{''.join(SAMPLES)}_{MODEL}.pdf"
+
+rule fit_moments:
+    output:
+        f"moments_dat/{SFS_BATCH}__{MODEL}__{SAMPLES[0]}__{SAMPLES[1]}.csv"
+    shell:
+        "python fit_moments.py --model_to_fit {MODEL} --sfs_batch {SFS_BATCH} --focal_pops {SAMPLES[0]} {SAMPLES[1]}"
+
+rule compute_residuals:
+    input:
+        f"moments_dat/{SFS_BATCH}__{MODEL}__{SAMPLES[0]}__{SAMPLES[1]}.csv"
+    output:
+        f"moments_dat/{SFS_BATCH}__{MODEL}__{SAMPLES[0]}__{SAMPLES[1]}_residuals.csv"
+    shell:
+        "python compute_residuals.py --model_name {MODEL} --sfs_batch {SFS_BATCH} --pops {SAMPLES[0]} {SAMPLES[1]}"
+
+rule postprocess_results:
+    input:
+        f"moments_dat/{SFS_BATCH}__{MODEL}__{SAMPLES[0]}__{SAMPLES[1]}.csv",
+        f"moments_dat/{SFS_BATCH}__{MODEL}__{SAMPLES[0]}__{SAMPLES[1]}_residuals.csv"
+    output:
+        f"moments_dat/{SFS_BATCH}__{MODEL}__{SAMPLES[0]}__{SAMPLES[1]}_full.csv",
+        f"moments_dat/{SFS_BATCH}__{MODEL}__{SAMPLES[0]}__{SAMPLES[1]}_cleaned.csv"
+    shell:
+        "python postprocess_results.py --model_name {MODEL} --sfs_batch {SFS_BATCH} --pops {SAMPLES[0]} {SAMPLES[1]}"
+
+rule plot_moments_SFS_full:
+    input:
+        f"moments_dat/{SFS_BATCH}__{MODEL}__{SAMPLES[0]}__{SAMPLES[1]}_full.csv"
+    output:
+        f"moments_figures/{SFS_BATCH}_full_sfs.pdf"
+    shell:
+        "python plot_moments_SFS_full.py --model_name {MODEL} --sfs_batch {SFS_BATCH} --pops {SAMPLES[0]} {SAMPLES[1]}"
+
+rule plot_moments_results:
+    input:
+        f"moments_dat/{SFS_BATCH}__{MODEL}__{SAMPLES[0]}__{SAMPLES[1]}_full.csv"
+    output:
+        f"moments_figures/{SFS_BATCH}_residual_size_by_clades_{''.join(SAMPLES)}_{MODEL}.pdf",
+        f"moments_figures/{SFS_BATCH}_residual_size_by_species_{''.join(SAMPLES)}_{MODEL}.pdf",
+        f"moments_figures/{SFS_BATCH}_split_time_values_{''.join(SAMPLES)}_{MODEL}.pdf"
+    shell:
+        "python plot_moments_results.py --model_name {MODEL} --sfs_batch {SFS_BATCH} --pops {SAMPLES[0]} {SAMPLES[1]}"

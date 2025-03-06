@@ -31,7 +31,7 @@ def filter_species_for_pops(pops=['Hadza', 'Tsimane'], model_name='split_mig'):
         proj = moment_results.loc[species, ['proj_'+pop for pop in pops]].astype(int).to_list()
         
         # data, _ = moments_utils._load_SFS(species, proj, config.databatch)
-        data = moments_utils.load_SFS_projection(species, focal_pops=pops)
+        data, _ = moments_utils.load_SFS_projection(species, focal_pops=pops)
         try:
             model = moments_utils.prep_model(moment_results.loc[species], 
                                             model_func, data, model_name=model_name)

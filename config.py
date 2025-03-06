@@ -51,8 +51,7 @@ color_dict = dict(zip(all_comps, colors))
 pop_colors = ['#a1c9f4', '#ffb482', '#8de5a1', '#ff9f9b', '#d0bbff', '#debb9b', '#fffea3']
 
 # default databatch
-# databatch = '250220'
-databatch = '240714'
+databatch = '250220'
 sfs_batch = f'{databatch}_full'
 
 # cphmm result path

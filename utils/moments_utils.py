@@ -119,8 +119,24 @@ def load_SFS_projection(species, proj_func=proj_func, sfs_folder=config.sfs_path
     ts_counts = [sum(dd[x]['calls'][focal_pops[1]]) for x in dd]
 
     proj = [proj_func(hz_counts), proj_func(ts_counts)]
-    data = moments.Spectrum.from_data_dict(dd, pop_ids=focal_pops, projections=proj, polarized=False)
-    return data
+    try:
+        data = moments.Spectrum.from_data_dict(dd, pop_ids=focal_pops, projections = proj, polarized = False)
+    except AttributeError:
+        # because of stupid python version problem, need this way to catch the data warning in moments
+        # this error is because no SNV is found after projection
+        return None
+
+    num_total_snvs = len(dd)
+    num_focal_snvs = count_segragating_snvs_in_pops(dd, focal_pops)
+    num_proj_snvs = data.S()
+    stats = {
+        'num_total_snvs': num_total_snvs,
+        'num_focal_snvs': num_focal_snvs,
+        'num_proj_snvs': num_proj_snvs
+    }
+    for i, pop in enumerate(focal_pops):
+        stats[f'proj_{pop}'] = proj[i]
+    return data, stats
 
 def load_SFS(species, metadata, proj_ratio=0.9, sfs_folder=config.sfs_path / config.sfs_batch, focal_pops=['Hadza', 'Tsimane']):
     """
@@ -142,7 +158,7 @@ def _load_SFS(species, proj, sfs_folder=config.sfs_path / config.sfs_batch, foca
         # because of stupid python version problem, need this way to catch the data warning in moments
         # this error is because no SNV is found after projection
         return None
-
+    
     num_total_snvs = len(dd)
     num_focal_snvs = count_segragating_snvs_in_pops(dd, focal_pops)
     num_proj_snvs = data.S()

@@ -44,7 +44,7 @@ plt.subplots_adjust(hspace=0.7, wspace=0.5)
 
 for i, species in enumerate(species_to_plot):
     proj = moments_results.loc[species, ['Hadza_projection', 'Tsimane_projection']].astype(int).to_list()
-    data = moments_utils.load_SFS_projection(species, focal_pops=['Hadza', 'Tsimane'])
+    data, _ = moments_utils.load_SFS_projection(species, focal_pops=['Hadza', 'Tsimane'])
     model = moments_utils.prep_model(moments_results.loc[species], moments.Demographics2D.split_mig, data,
                                      model_name='split_mig')
     f_h = data.marginalize([1])
@@ -106,7 +106,7 @@ plt.subplots_adjust(hspace=0.7, wspace=0.5)
 
 for i, species in enumerate(species_to_plot):
     proj = moments_results.loc[species, ['Hadza_projection', 'Tsimane_projection']].astype(int).to_list()
-    data = moments_utils.load_SFS_projection(species, focal_pops=['Hadza', 'Tsimane'])
+    data, _ = moments_utils.load_SFS_projection(species, focal_pops=['Hadza', 'Tsimane'])
     model = moments_utils.prep_model(moments_results.loc[species], moments.Demographics2D.split_mig, data,
                                      model_name='split_mig')
     f_h = data.marginalize([1])
