@@ -1,0 +1,60 @@
+import os
+import sys
+# Determine Snakefile location
+sys.path.append('..')
+import config
+from utils import metadata_utils
+
+SAVE_FULL = True
+if SAVE_FULL:
+    SFS_BATCH = f"{config.databatch}_full"
+else:
+    SFS_BATCH = f"{config.databatch}"
+metadata = metadata_utils.MetadataHelper(config.databatch)
+
+# Build the output path patterns from config
+syn_genome_file = str(config.cache_snvs_path / config.databatch / "syn_genome_lens.csv")
+syn_snvs_pattern = str(config.cache_snvs_path / config.databatch / "syn_snvs" / ("{species}_syn_snvs." + config.cache_format))
+coverage_pattern = str(config.cache_snvs_path / config.databatch / "coverage" / ("{species}_coverage." + config.cache_format))
+sfs_dict_pattern = str(config.sfs_path / SFS_BATCH / "{species}.snps.txt")
+
+def get_species_list():
+    return metadata.get_species_list()
+
+rule all:
+    input:
+        syn_genome_file,
+        expand(coverage_pattern, species=get_species_list()),
+        expand(syn_snvs_pattern, species=get_species_list()),
+        expand(sfs_dict_pattern, species=get_species_list())
+
+
+rule compute_core_genome_statistics:
+    output:
+        syn_genome_file,
+        expand(syn_snvs_pattern, species=get_species_list())
+    shell:
+        "python compute_core_genome_statistics.py"
+
+rule compute_and_save_coverage_matrix:
+    input:
+        expand(syn_snvs_pattern, species=get_species_list())
+    output:
+        expand(coverage_pattern, species=get_species_list())
+    params:
+        data_batch=config.databatch,
+        cache_format=config.cache_format
+    shell:
+        "python compute_and_save_coverage_matrix.py --data_batch {params.data_batch} --cache_format {params.cache_format}"
+
+rule save_sfs_dict:
+    input:
+        expand(syn_snvs_pattern, species=get_species_list()),
+        expand(coverage_pattern, species=get_species_list())
+    output:
+        expand(sfs_dict_pattern, species=get_species_list())
+    params:
+        data_batch=config.databatch,
+        saving_full=SAVE_FULL
+    shell:
+        "python save_sfs_dict.py --data_batch {params.data_batch} --saving_full {params.saving_full}"
