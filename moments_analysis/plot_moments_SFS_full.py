@@ -15,7 +15,7 @@ def plot_residual(ax, data, model, mask_singletons=False):
     if mask_singletons:
         data.mask[1, :] = True
         data.mask[:, 1] = True
-    vmin = 1
+    vmin = 2
     resid_range = 5
     pops = data.pop_ids
     resid = moments.Inference.linear_Poisson_residual(model, data, mask=vmin)
@@ -96,7 +96,7 @@ def main():
         axes[i, 3].set_ylabel('Hadza', labelpad=0)
         axes[i, 3].set_title('Model', pad=2)
 
-        resid = plot_residual(axes[i, 4], data, model, mask_singletons=True)
+        resid = plot_residual(axes[i, 4], data, model, mask_singletons=False)
         axes[i, 4].set_xlabel('Tsimane', labelpad=0)
         axes[i, 4].set_ylabel('Hadza', labelpad=0)
         axes[i, 4].set_title(r'$\mathrm{Resid}=(\mathrm{Model}-\mathrm{Data})/\sqrt{\mathrm{Model}}$', pad=2)

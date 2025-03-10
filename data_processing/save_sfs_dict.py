@@ -2,6 +2,9 @@ import logging
 import pandas as pd
 import argparse
 
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from utils import snv_utils, pairwise_utils, metadata_utils
 import config
 

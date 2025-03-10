@@ -33,8 +33,10 @@ rule compute_core_genome_statistics:
     output:
         syn_genome_file,
         expand(syn_snvs_pattern, species=get_species_list())
+    params:
+        data_batch=config.databatch,
     shell:
-        "python compute_core_genome_statistics.py"
+        "python compute_core_genome_statistics.py --data_batch {params.data_batch}"
 
 rule compute_and_save_coverage_matrix:
     input:

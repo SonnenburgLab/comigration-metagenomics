@@ -44,7 +44,7 @@ def main():
     print("Print {} passed uncertainty filter".format(sum(passed)))
 
     passed_species_after_uncert = passed_species.copy()
-    passed_species = passed_species[passed_species['mean_abs_resid'] < 1.5]
+    passed_species = passed_species[passed_species['mean_abs_resid'] < 1.]
     print("Print {} passed residual filter".format(passed_species.shape[0]))
 
 
@@ -98,7 +98,7 @@ def main():
     plt.figure(figsize=(6, 2))
 
     to_plot = passed_species_after_uncert
-    to_plot['passed'] = to_plot['mean_abs_resid'] < 1.5
+    to_plot['passed'] = to_plot['mean_abs_resid'] < 1.
 
     sns.barplot(data=to_plot, x='species', y='mean_abs_resid', hue='passed',
                 linewidth=1.5, edgecolor=".5", palette=['white', 'tab:blue'])
