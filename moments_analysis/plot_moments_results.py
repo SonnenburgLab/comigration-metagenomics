@@ -44,7 +44,11 @@ def main():
     print("Print {} passed uncertainty filter".format(sum(passed)))
 
     passed_species_after_uncert = passed_species.copy()
-    passed_species = passed_species[passed_species['mean_abs_resid'] < 1.]
+    resid_threshold = 1.5
+    marginalized_resid_threshold = 2
+    passed_species = passed_species[passed_species['mean_abs_resid'] < resid_threshold]
+    passed_species = passed_species[passed_species['mean_abs_resid_Hadza'] < marginalized_resid_threshold]
+    passed_species = passed_species[passed_species['mean_abs_resid_Tsimane'] < marginalized_resid_threshold]
     print("Print {} passed residual filter".format(passed_species.shape[0]))
 
 
@@ -95,17 +99,36 @@ def main():
     ################################################################
     # second plot residual among species with no clades
     ################################################################
-    plt.figure(figsize=(6, 2))
+    fig, axes = plt.subplots(3, 1, figsize=(6, 6))
 
     to_plot = passed_species_after_uncert
-    to_plot['passed'] = to_plot['mean_abs_resid'] < 1.
+    to_plot['passed'] = to_plot.index.isin(passed_species.index)
 
+    ax = axes[0]
     sns.barplot(data=to_plot, x='species', y='mean_abs_resid', hue='passed',
-                linewidth=1.5, edgecolor=".5", palette=['white', 'tab:blue'])
-    plt.legend().remove()
-    plt.axhline(1.5, color='k', linestyle='--')
-    _ = plt.xticks(rotation=90)
-    plt.ylabel('Mean residual size')
+                linewidth=1.5, edgecolor=".5", palette=['white', 'tab:blue'], ax=axes[0])
+    ax.axhline(resid_threshold, color='k', linestyle='--')
+    ax.set_xticks([])
+    ax.set_ylabel('Mean residual size')
+    ax.set_xlabel('')
+
+    ax = axes[1]
+    sns.barplot(data=to_plot, x='species', y='mean_abs_resid_Tsimane', hue='passed',
+                linewidth=1.5, edgecolor=".5", palette=['white', 'tab:blue'], ax=axes[1])
+    ax.axhline(marginalized_resid_threshold, color='k', linestyle='--')
+    ax.set_xticks([])
+    ax.set_ylabel('Mean residual size\n(Tsimane)')
+    ax.set_xlabel('')
+
+    ax = axes[2]
+    sns.barplot(data=to_plot, x='species', y='mean_abs_resid_Hadza', hue='passed',
+                linewidth=1.5, edgecolor=".5", palette=['white', 'tab:blue'], ax=axes[2])
+    ax.axhline(marginalized_resid_threshold, color='k', linestyle='--')
+    # rotate x ticks
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+    for ax in axes:
+        ax.legend().remove()
+    ax.set_ylabel('Mean residual size\n(Hadza)')
     plt.xlabel('')
     plt.savefig(moments_figure_path / f'{sfs_batch}_residual_size_by_species_{popstr}_{model_name}.pdf', bbox_inches='tight')
     plt.close()
