@@ -1,6 +1,7 @@
 SAMPLES = ["Hadza", "Tsimane"]
 MODEL = "split_mig"
 SFS_BATCH = "250220_full"
+# SFS_BATCH = "240714"
 
 rule all:
     input:

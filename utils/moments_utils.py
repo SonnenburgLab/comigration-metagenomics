@@ -248,14 +248,14 @@ def prep_model_neutral(fs):
 Various ways of parsing the saved SFS data
 """
 
-def load_raw_SFS_proj(species, proj, sfs_folder=config.sfs_path / config.databatch, focal_pops=['Hadza', 'Tsimane']):
+def load_raw_SFS_proj(species, proj, sfs_folder=config.sfs_path / config.sfs_batch, focal_pops=['Hadza', 'Tsimane']):
     sfs_file = f'{sfs_folder}/{species}.snps.txt'
     dd = dadi.Misc.make_data_dict(sfs_file)
 
     data = moments.Spectrum.from_data_dict(dd, pop_ids=focal_pops, projections=proj, polarized=False)
     return data
 
-def load_sfs_counts(species, sfs_folder=config.sfs_path / config.databatch, pops=['Hadza', 'Tsimane']):
+def load_sfs_counts(species, sfs_folder=config.sfs_path / config.sfs_batch, pops=['Hadza', 'Tsimane']):
     # loading the raw counts from dadi dicts
     sfs_file = f'{sfs_folder}/{species}.snps.txt'
     dd = dadi.Misc.make_data_dict(sfs_file)
@@ -368,12 +368,12 @@ def compute_exclusive_likelihood_model(sfs_dat, model):
 
 """Miscellaneous functions"""
 
-def load_moments_results(result_path):
-    moment_results = pd.read_csv(result_path)
-    moment_results.set_index('species', inplace=True)
-    moment_results['Tsplit'] = rescale_time(moment_results['T'], moment_results['theta'], moment_results['num_sites_passing_proj'])
-    moment_results['Tsplit_uncert'] = rescale_time(moment_results['uncert_T'], moment_results['theta'], moment_results['num_sites_passing_proj'])
-    return moment_results
+# def load_moments_results(result_path):
+#     moment_results = pd.read_csv(result_path)
+#     moment_results.set_index('species', inplace=True)
+#     moment_results['Tsplit'] = rescale_time(moment_results['T'], moment_results['theta'], moment_results['num_sites_passing_proj'])
+#     moment_results['Tsplit_uncert'] = rescale_time(moment_results['uncert_T'], moment_results['theta'], moment_results['num_sites_passing_proj'])
+#     return moment_results
 
 
 def load_best_fit_moments_results(inferred_path):

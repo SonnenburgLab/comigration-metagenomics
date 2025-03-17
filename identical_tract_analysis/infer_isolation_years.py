@@ -94,18 +94,24 @@ def find_L99_year(sim_years, sim_L99s, L99_target, log_scale=True):
         return None, interp_func_ret
 
 if __name__ == '__main__':
-    species_list = get_passed_species_full_within()
     pairwise_helper = pairwise_utils.PairwiseHelper(databatch=config.databatch)
 
     num_bootstrap = 1000
     # if a population comparison has fewer than this number of pairs, skip it
     pair_threshold = 200
 
-    all_focal_pops = [['Hadza', 'Tsimane'], ['China', 'HMP'], ['HMP', 'MetaHIT']]
-    sim_path = config.intermediate_data_path / 'mutation_accumulation'
+    # all_focal_pops = [['Hadza', 'Tsimane'], ['China', 'HMP'], ['HMP', 'MetaHIT']]
+    all_focal_pops = [['Hadza', 'Tsimane'], ['Asia', 'NorthAmerica'], ['Europe', 'NorthAmerica']]
+
+    species_list = get_passed_species_full_within(all_pops=pairwise_helper.metadata.get_all_pops(), all_focal_pops=all_focal_pops)
+
+    # sim_path = config.intermediate_data_path / 'mutation_accumulation'
+    sim_path = config.ibs_analysis_path / 'ibs_dat' / 'mutation_accumulation'
 
     # simulated range of years in simulate_mutation_accumulation.py
-    sim_years = np.logspace(3, 5.5, 20)
+    sim_rates = pd.read_csv(sim_path / 'mutation_rates.tsv', sep='\t')
+    sim_years = sim_rates['years'].values
+    # sim_years = np.logspace(3, 5.5, 20)
 
     # Fit isotonic regression
     iso_reg = IsotonicRegression(increasing=False)
@@ -153,4 +159,5 @@ if __name__ == '__main__':
             res_data.append([species, focal_pops[0], focal_pops[1], between_l99, between_size, mean_year, ci[0], ci[1], p_val, mean_within_l99, std_within_l99])
 
     res_df = pd.DataFrame(res_data, columns=['species', 'pop1', 'pop2', 'between_L99', 'num_pairs', 'mean_year', 'ci_low', 'ci_high', 'p_val', 'mean_within_L99', 'std_within_L99'])
-    res_df.to_csv(config.intermediate_data_path / 'mutation_accumulation' / 'between_pop_inferred_years.tsv', sep='\t', index=False)
+    # res_df.to_csv(config.intermediate_data_path / 'mutation_accumulation' / 'between_pop_inferred_years.tsv', sep='\t', index=False)
+    res_df.to_csv(config.ibs_analysis_path / 'ibs_dat' / f'{config.databatch}_l99_inferred_times.tsv', sep='\t', index=False)

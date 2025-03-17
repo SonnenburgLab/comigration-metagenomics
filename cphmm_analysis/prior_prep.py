@@ -1,6 +1,9 @@
 import time
 import os
 
+import sys
+# manually adding the cphmm path
+sys.path.append('/Users/Device6/Documents/Research/bgoodlab/close_pair_hmm')
 import cphmm.prior
 import tsimane_datahelper
 

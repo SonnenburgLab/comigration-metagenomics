@@ -2,17 +2,11 @@ import numpy as np
 import pandas as pd
 import scipy
 import pickle
+import os
 from scipy.cluster.hierarchy import linkage, fcluster
 from utils import metadata_utils
 
 import config
-
-def load_hgt_res(hgt_res_path=config.hgt_res_path):
-    hgt_res = pd.read_csv(hgt_res_path)
-    hgt_res['species'] = hgt_res['name'].str.replace('_v7', '')
-    hgt_res['genome1'] = hgt_res['querry'].str.replace('.fa', '')
-    hgt_res['genome2'] = hgt_res['reference'].str.replace('.fa', '')
-    return hgt_res
 
 def long_form_to_symmetric(df, row_name='genome1', col_name='genome2', val_name='div', diagonal_fill=0):
     """
@@ -141,12 +135,12 @@ def HGT_score(df, quantile=0.99, ref_length=700):
     hgt_score = np.log10(hgt_len / ref_length)
     return hgt_score
 
-def length_to_years(run, mu=4.08e-10, gen_per_day=1):
-    mu_per_year = mu * gen_per_day * 365
+def length_to_years(run, mu=config.mut_rate, gen_per_day=config.gen_per_day):
+    mu_per_year = mu * gen_per_day * config.day_per_year
     return 1 / run / mu_per_year
 
-def year_to_length(year, mu=4.08e-10, gen_per_day=1):
-    mu_per_year = mu * gen_per_day * 365
+def year_to_length(year, mu=config.mut_rate, gen_per_day=config.gen_per_day):
+    mu_per_year = mu * gen_per_day * config.day_per_year
     return 1 / year / mu_per_year
 
 def long_run_length(df, quantile=0.99):
@@ -157,24 +151,25 @@ def long_run_length(df, quantile=0.99):
 Below are some classes for organizing pairwise comparisons
 """
 class SpeciesPairwiseHelper:
-    def __init__(self, species_name, run_summary, hgt_summary, metadata, cluster_threshold=config.clonal_cluster_pi_threshold):
+    def __init__(self, species_name, run_summary, drep_summary, metadata, cluster_threshold=config.clonal_cluster_pi_threshold):
         self.metadata = metadata
         self.species_name = species_name
         self.run_summary = run_summary
-        self.hgt_summary = hgt_summary
+        self.drep_summary = drep_summary
         self.cluster_threshold = cluster_threshold
         self.clonal_clusters = self.get_clonal_clusters(self.cluster_threshold)
-        self.full_run_path = config.run_path / f'{self.species_name}__pairwise_runs.pkl'
+        self.data_batch = metadata.data_batch
+        self.full_run_path = config.run_path / self.data_batch / f'{self.species_name}__pairwise_runs.pkl'
         with open(self.full_run_path, 'rb') as f:
             self.all_runs = pickle.load(f)
 
     def get_ani_mat(self, pops=None):
-        ani_mat = long_form_to_symmetric(self.hgt_summary, row_name='genome1', col_name='genome2', val_name='ani',
+        ani_mat = long_form_to_symmetric(self.drep_summary, row_name='genome1', col_name='genome2', val_name='ani',
                                          diagonal_fill=1)
         return ani_mat
     
     def get_percid_mat(self):
-        id_mat = long_form_to_symmetric(self.hgt_summary, row_name='genome1', col_name='genome2', val_name='perc_id',
+        id_mat = long_form_to_symmetric(self.drep_summary, row_name='genome1', col_name='genome2', val_name='perc_id',
                                         diagonal_fill=1)
         return id_mat
     
@@ -182,8 +177,8 @@ class SpeciesPairwiseHelper:
         div_mat = long_form_to_symmetric(self.run_summary, row_name='genome1', col_name='genome2', val_name='div')
         return div_mat
     
-    def get_hgt_mags(self):
-        return list(set(self.hgt_summary['genome1'].unique()) | set(self.hgt_summary['genome2'].unique()))
+    def get_drep_mags(self):
+        return list(set(self.drep_summary['genome1'].unique()) | set(self.drep_summary['genome2'].unique()))
     
     def get_all_mags(self):
         return list(set(self.run_summary['genome1'].unique()) | set(self.run_summary['genome2'].unique()))
@@ -194,10 +189,10 @@ class SpeciesPairwiseHelper:
         Requires dRep pairwise results to contain this species
         Returns a DataFrame with columns 'genome' and 'cluster'
         """
-        if len(self.hgt_summary) == 0:
+        if len(self.drep_summary) == 0:
             raise ValueError('No HGT results found for this species')
 
-        symmetric_table = long_form_to_symmetric(self.hgt_summary, row_name='genome1', col_name='genome2',
+        symmetric_table = long_form_to_symmetric(self.drep_summary, row_name='genome1', col_name='genome2',
                                                  val_name='perc_id', diagonal_fill=1)
         # convert to perc different so that it's a distance matrix
         symmetric_table = 1 - symmetric_table
@@ -207,7 +202,7 @@ class SpeciesPairwiseHelper:
     
     def get_filtered_runs(self, perc_id_threshold=0.1):
         df1 = self.run_summary.copy()
-        df2 = self.hgt_summary.copy()
+        df2 = self.drep_summary.copy()
         df1['genome_pair'] = df1.apply(lambda row: tuple(sorted([row['genome1'], row['genome2']])), axis=1)
         df2['genome_pair'] = df2.apply(lambda row: tuple(sorted([row['genome1'], row['genome2']])), axis=1)
 
@@ -313,20 +308,14 @@ class SpeciesPairwiseHelper:
         else:
             raise ValueError(f'Pairwise run not found for {mag1} and {mag2}')
     
-    def get_ANI_dist(self, pops):
-        if pops is None:
-            return self.hgt_summary['ani'].values
-        mask = self.hgt_summary['study_x'].isin(pops) & self.hgt_summary['study_y'].isin(pops)
-        return self.hgt_summary[mask]['ani'].values
-    
     def get_ANI_dist_by_mags(self, mags):
-        mask = self.hgt_summary['genome1'].isin(mags) & self.hgt_summary['genome2'].isin(mags)
-        return self.hgt_summary[mask]['ani'].values
+        mask = self.drep_summary['genome1'].isin(mags) & self.drep_summary['genome2'].isin(mags)
+        return self.drep_summary[mask]['ani'].values
     
     def get_ANI_dist_between_mags(self, mags1, mags2):
-        mask1 = self.hgt_summary['genome1'].isin(mags1) & self.hgt_summary['genome2'].isin(mags2)
-        mask2 = self.hgt_summary['genome1'].isin(mags2) & self.hgt_summary['genome2'].isin(mags1)
-        return self.hgt_summary[mask1 | mask2]['ani'].values
+        mask1 = self.drep_summary['genome1'].isin(mags1) & self.drep_summary['genome2'].isin(mags2)
+        mask2 = self.drep_summary['genome1'].isin(mags2) & self.drep_summary['genome2'].isin(mags1)
+        return self.drep_summary[mask1 | mask2]['ani'].values
     
     def get_between_pop_L99(self, pop1, pop2, perc_id_threshold=0.1):
         if perc_id_threshold is None:
@@ -345,28 +334,40 @@ class PairwiseHelper:
     """
     A class to hold all pairwise comparisons for a databatch; mostly for
     creating species-level helper
-    TODO: eventually add the identical gene and genome ANI statistics
-    TODO: might need to compute identical block myself because drep cannot finish every pair
     """
     def __init__(self, databatch):
         self.databatch = databatch
         self.metadata = metadata_utils.MetadataHelper(databatch)
-        self.pairwise_summary = self.load_pairwise_summary()
-        self.hgt_summary = load_hgt_res()
+        self.pairwise_summary = self.load_pairwise_summary(databatch)
+        self.drep_summary = self.load_drep_res(databatch)
 
     def get_species_list(self):
         return self.pairwise_summary['species'].unique()
 
-    def load_pairwise_summary(self):
-        pairwise_summary_path = config.run_path / f'{self.databatch}_annotated.csv'
-        return pd.read_csv(pairwise_summary_path)
+    @staticmethod
+    def load_pairwise_summary(databatch):
+        filepath = config.run_path / f'{databatch}_annotated_max_runs.csv'
+        return pd.read_csv(filepath)
+
+    @staticmethod
+    def load_drep_res(databatch):
+        drep_res_path = config.drep_res_path / f'{databatch}_drep.csv'
+        # loading drep results (Matt O's analysis)
+        if not os.path.exists(drep_res_path):
+            raise FileNotFoundError(f'No dRep results found at {drep_res_path}')
+        drep_res = pd.read_csv(drep_res_path)
+        # drop the suffixes
+        drep_res['species'] = drep_res['name'].str.replace(r'(_v7|_v8)', '', regex=True)
+        drep_res['genome1'] = drep_res['querry'].str.replace('.fa', '')
+        drep_res['genome2'] = drep_res['reference'].str.replace('.fa', '')
+        return drep_res
 
     def get_species_pairwise_summary(self, species_name):
         species_res = self.pairwise_summary[self.pairwise_summary['species'] == species_name]
         return species_res
     
     def get_species_helper(self, species_name, cluster_threshold=config.clonal_cluster_pi_threshold):
-        species_hgt = self.hgt_summary[self.hgt_summary['species'] == species_name]
+        species_hgt = self.drep_summary[self.drep_summary['species'] == species_name]
         species_run = self.get_species_pairwise_summary(species_name)
         return SpeciesPairwiseHelper(species_name, species_run, species_hgt, metadata=self.metadata, cluster_threshold=cluster_threshold)
 
@@ -386,8 +387,8 @@ class PairwiseHelper:
 
         Any pair above the threshold will be de-duplicated
         """
-        species_hgt_res = self.hgt_summary[self.hgt_summary['species'] == species_name]
-        symmetric_table = long_form_to_symmetric(species_hgt_res, row_name='genome1', col_name='genome2', val_name='perc_id')
+        species_drep_res = self.drep_summary[self.drep_summary['species'] == species_name]
+        symmetric_table = long_form_to_symmetric(species_drep_res, row_name='genome1', col_name='genome2', val_name='perc_id')
         np.fill_diagonal(symmetric_table.values, 1)
         symmetric_table = 1 - symmetric_table
 

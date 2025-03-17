@@ -60,8 +60,10 @@ if __name__ == '__main__':
     passed_species = passed_species[passed]
     print("Print {} passed uncertainty filter".format(sum(passed)))
 
-    passed_species_after_uncert = passed_species.copy()
-    passed_species = passed_species[passed_species['mean_abs_resid'] < 1.5]
+    resid_threshold = 2
+    passed_species = passed_species[passed_species['mean_abs_resid'] < resid_threshold]
+    passed_species = passed_species[passed_species['mean_abs_resid_Hadza'] < resid_threshold]
+    passed_species = passed_species[passed_species['mean_abs_resid_Tsimane'] < resid_threshold]
     print("Print {} passed residual filter".format(passed_species.shape[0]))
 
     # rename columns for clarity

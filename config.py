@@ -21,15 +21,20 @@ identical_fraction_path = data_base_path / 'identical_fraction'
 # files on my laptop
 project_path = Path('/Users/Device6/Documents/Research/bgoodlab/microbiome_codiv/comigration_metagenomics')
 # dRep path
-hgt_res_path = Path('/Users/Device6/Documents/Research/bgoodlab/microbiome_codiv/dRep_analysis/Global_HGT_v7.2.csv')
+drep_res_path = data_base_path / 'dRep_analysis'
+# hgt_res_path = Path('/Users/Device6/Documents/Research/bgoodlab/microbiome_codiv/dRep_analysis/Global_HGT_v7.2.csv')
+
 # figure path
 fig_path = project_path / 'figs'
 # for supplementary writing
-supp_fig_path = Path('/Users/Device6/Documents/Research/bgoodlab/_drafts/microbiome_codiv/SI/figs')
+# supp_fig_path = Path('/Users/Device6/Documents/Research/bgoodlab/_drafts/microbiome_codiv/SI/figs')
+supp_fig_path = project_path / 'figs_supp'
 # supp tables
 supp_table_path = project_path / 'dat_supp'
 # moments ananlysis path
 moments_path = project_path / 'moments_analysis'
+# ibs tract analysis path
+ibs_analysis_path = project_path / 'identical_tract_analysis'
 
 # intermediate data path
 intermediate_data_path = project_path / 'dat'

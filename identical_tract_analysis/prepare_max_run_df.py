@@ -2,6 +2,9 @@ import pandas as pd
 import numpy as np
 import pickle
 
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from utils import metadata_utils
 import config
 
@@ -42,7 +45,7 @@ if __name__ == '__main__':
     species_list = metadata.get_species_list()
 
     for species in species_list:
-        save_path = config.run_path / f'{species}__pairwise_runs.pkl'
+        save_path = config.run_path / config.databatch / f'{species}__pairwise_runs.pkl'
         with open(save_path, 'rb') as f:
             all_runs = pickle.load(f)
         try:
@@ -65,5 +68,5 @@ if __name__ == '__main__':
 
         all_results.append(max_runs)
 
-    full_res = pd.concat(all_results)
+    full_res = pd.concat(all_results).reset_index()
     full_res.to_csv(config.run_path / f'{config.databatch}_annotated_max_runs.csv', index=False)

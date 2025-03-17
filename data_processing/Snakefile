@@ -1,6 +1,5 @@
 import os
 import sys
-# Determine Snakefile location
 sys.path.append('..')
 import config
 from utils import metadata_utils
