@@ -1,3 +1,0 @@
-"""
-For interfacing with tskit
-"""
