@@ -12,6 +12,7 @@ within the species and help double check if the clade structure looks "real".
 """
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+import argparse  # Added for command-line argument parsing
 
 from utils import metadata_utils, pairwise_utils
 import config
@@ -23,7 +24,7 @@ def find_clade_for_pops(genome_cutoff=30, pops=['Hadza', 'Tsimane']):
     passed_species = passed.index.values
 
     pw_helper = pairwise_utils.PairwiseHelper(databatch=config.databatch)
-    output_path = config.project_path / 'moments_out'
+    output_path = config.moments_path / 'moments_figures'
 
     clade_species = []
     popstr = ''.join(pops)
@@ -48,10 +49,12 @@ def find_clade_for_pops(genome_cutoff=30, pops=['Hadza', 'Tsimane']):
             clade_species.append(species)
 
     passed['if_clade'] = passed.index.isin(clade_species)
-    passed.to_csv(config.intermediate_data_path / '{}_moments_species_clades_{}.csv'.format(config.databatch, popstr))
+    passed.to_csv(config.moments_path / 'moments_dat' / '{}_moments_species_clades_{}.csv'.format(config.databatch, popstr))
 
 
 if __name__ == '__main__':
-    find_clade_for_pops(pops=['Hadza', 'Tsimane'])
-    # find_clade_for_pops(pops=['MetaHIT', 'HMP'])
+    parser = argparse.ArgumentParser(description="Find clades for specified populations.")
+    parser.add_argument('--pops', type=str, nargs='+', default=["Hadza", "Tsimane"], help="List of populations")
+    args = parser.parse_args()
+    find_clade_for_pops(pops=args.pops)
     print("Done!")

@@ -178,5 +178,12 @@ def main():
     plt.savefig(moments_figure_path / f'{sfs_batch}_split_time_values_{popstr}_{model_name}.pdf', bbox_inches='tight')
     plt.close()
 
+    # now clean up the dataframe for saving
+    output_path_cleaned = config.moments_path / 'moments_dat' / f'{sfs_batch}__{model_name}__{pops[0]}__{pops[1]}_cleaned.csv'
+    columns_to_keep = ['nu1', 'nu1_std', 'nu2', 'nu2_std', 'T', 'T_std', 'm', 'm_std', 'theta', 'theta_std', 'num_Hadza_MAGs', 'num_Tsimane_MAGs', 'Hadza_projection', 'Tsimane_projection', 'num_total_syn_sites', 'num_sites_passing_proj', 'Tsplit (yr)', 'Tsplit_std (yr)']
+    moments_results = moments_results[columns_to_keep]
+    # save the filtered results
+    moments_results.loc[passed_species.index].to_csv(output_path_cleaned)
+
 if __name__ == "__main__":
     main()

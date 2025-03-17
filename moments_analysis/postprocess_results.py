@@ -29,10 +29,8 @@ if __name__ == '__main__':
     residual_path = config.moments_path / 'moments_dat' / \
         f'{sfs_batch}__{model_name}__{pops[0]}__{pops[1]}_residuals.csv'
     output_path = config.moments_path / 'moments_dat' / f'{sfs_batch}__{model_name}__{pops[0]}__{pops[1]}_full.csv'
-    output_path_cleaned = config.moments_path / 'moments_dat' / f'{sfs_batch}__{model_name}__{pops[0]}__{pops[1]}_cleaned.csv'
 
-    # TODO: change clade path
-    clade_path = config.intermediate_data_path / 'moments_species_clades_{}.csv'.format(''.join(pops))
+    clade_path = config.moments_path / 'moments_dat' / '{}_moments_species_clades_{}.csv'.format(config.databatch, ''.join(pops))
 
     moments_results = moments_utils.load_best_fit_moments_results(inferred_path)
 
@@ -47,24 +45,6 @@ if __name__ == '__main__':
 
     # now apply a few filters
     print("Print {} passed genome filter".format(moments_results.shape[0]))
-
-    # filter to species with clade structure
-    passed_species = moments_results[~moments_results['if_clade']]
-    print("Print {} passed clade filter".format(passed_species.shape[0]))
-
-    # filter to species with low uncertainty
-    uncert_ratio = passed_species['Tsplit_uncert'] / passed_species['Tsplit']
-
-    # if the uncertainty on the split time is too large, drop the species
-    passed = (uncert_ratio < 0.5) & (np.isnan(uncert_ratio)==False)
-    passed_species = passed_species[passed]
-    print("Print {} passed uncertainty filter".format(sum(passed)))
-
-    resid_threshold = 2
-    passed_species = passed_species[passed_species['mean_abs_resid'] < resid_threshold]
-    passed_species = passed_species[passed_species['mean_abs_resid_Hadza'] < resid_threshold]
-    passed_species = passed_species[passed_species['mean_abs_resid_Tsimane'] < resid_threshold]
-    print("Print {} passed residual filter".format(passed_species.shape[0]))
 
     # rename columns for clarity
     moments_results = moments_results.rename(
@@ -84,9 +64,3 @@ if __name__ == '__main__':
         }
     )
     moments_results.to_csv(output_path)
-    # now clean up the dataframe for saving
-    columns_to_keep = ['nu1', 'nu1_std', 'nu2', 'nu2_std', 'T', 'T_std', 'm', 'm_std', 'theta', 'theta_std', 'num_Hadza_MAGs', 'num_Tsimane_MAGs', 'Hadza_projection', 'Tsimane_projection', 'num_total_syn_sites', 'num_sites_passing_proj', 'Tsplit (yr)', 'Tsplit_std (yr)']
-    moments_results = moments_results[columns_to_keep]
-
-    # save the filtered results
-    moments_results.loc[passed_species.index].to_csv(output_path_cleaned)

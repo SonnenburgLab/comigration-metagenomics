@@ -1,0 +1,48 @@
+import os
+import sys
+sys.path.append('..')
+import config
+from utils import metadata_utils
+
+# Get species list
+metadata = metadata_utils.MetadataHelper(config.databatch)
+def get_species_list():
+    return metadata.get_species_list()
+
+# Define pattern for output files from compute_identical_tracts and prepare_max_run_df
+run_pattern = str(config.run_path / config.databatch / "{species}__pairwise_runs.pkl")
+annotated_run_file = str(config.run_path / f"{config.databatch}_annotated_max_runs.csv")
+
+# Define output files for compute_l99_summary using config values
+pairwise_run_file = str(config.run_path / f"{config.databatch}__pairwise_max_runs__percid={config.fig2_perc_id_threshold}__.tsv")
+run_year_summary_file = str(config.ibs_analysis_path / "ibs_dat" / f"{config.databatch}__run_year_summary__percid={config.fig2_perc_id_threshold}__.tsv")
+bootstrap_file = str(config.ibs_analysis_path / "ibs_dat" / f"{config.databatch}__bootstrap_results__percid={config.fig2_perc_id_threshold}__.tsv")
+
+rule all:
+    input:
+        annotated_run_file,
+        run_year_summary_file
+
+rule compute_identical_tracts:
+    output:
+        expand(run_pattern, species=get_species_list())
+    shell:
+        "python compute_identical_tracts.py"
+
+rule prepare_max_run_df:
+    input:
+        expand(run_pattern, species=get_species_list())
+    output:
+        annotated_run_file
+    shell:
+        "python prepare_max_run_df.py"
+
+rule compute_l99_summary:
+    input:
+        annotated_run_file
+    output:
+        pairwise_run=pairwise_run_file,
+        run_year_summary=run_year_summary_file,
+        bootstrap=bootstrap_file,
+    shell:
+        "python compute_l99_summary.py"

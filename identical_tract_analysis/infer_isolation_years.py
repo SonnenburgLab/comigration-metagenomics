@@ -110,8 +110,8 @@ if __name__ == '__main__':
 
     # simulated range of years in simulate_mutation_accumulation.py
     sim_rates = pd.read_csv(sim_path / 'mutation_rates.tsv', sep='\t')
+    # note, the years are translated from the simulated rates using the mutation rate and generation time in config.py
     sim_years = sim_rates['years'].values
-    # sim_years = np.logspace(3, 5.5, 20)
 
     # Fit isotonic regression
     iso_reg = IsotonicRegression(increasing=False)
@@ -141,6 +141,7 @@ if __name__ == '__main__':
                                 val_name='sim_max_run_0', n_bootstrap=num_bootstrap,
                                 n_resample=between_size)
             sim_0_l99_bs = np.array(sim_0_l99_bs)
+
             # test if shows significant isolation longer than the shortest simulation time
             p_val = np.sum(sim_0_l99_bs < between_l99) / num_bootstrap
             if p_val > 0.05:
@@ -155,9 +156,9 @@ if __name__ == '__main__':
                 inferred_year, func = find_L99_year(sim_years, bs_l99s_smoothed, between_l99)
                 inferred_years[i] = inferred_year
             mean_year = np.mean(inferred_years)
+            # compute 95% CI
             ci = np.percentile(inferred_years, [2.5, 97.5])
             res_data.append([species, focal_pops[0], focal_pops[1], between_l99, between_size, mean_year, ci[0], ci[1], p_val, mean_within_l99, std_within_l99])
 
     res_df = pd.DataFrame(res_data, columns=['species', 'pop1', 'pop2', 'between_L99', 'num_pairs', 'mean_year', 'ci_low', 'ci_high', 'p_val', 'mean_within_L99', 'std_within_L99'])
-    # res_df.to_csv(config.intermediate_data_path / 'mutation_accumulation' / 'between_pop_inferred_years.tsv', sep='\t', index=False)
     res_df.to_csv(config.ibs_analysis_path / 'ibs_dat' / f'{config.databatch}_l99_inferred_times.tsv', sep='\t', index=False)
