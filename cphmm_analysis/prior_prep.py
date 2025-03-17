@@ -2,13 +2,15 @@ import time
 import os
 
 import sys
-# manually adding the cphmm path
-sys.path.append('/Users/Device6/Documents/Research/bgoodlab/close_pair_hmm')
-import cphmm.prior
-import tsimane_datahelper
 
 from utils import pairwise_utils
 import config
+
+# manually adding the cphmm path
+# need to be careful with the config imports since this module also uses config
+sys.path.append('/Users/Device6/Documents/Research/bgoodlab/close_pair_hmm')
+import cphmm.prior
+import tsimane_datahelper
 
 pairwise_helper = pairwise_utils.PairwiseHelper(databatch=config.databatch)
 

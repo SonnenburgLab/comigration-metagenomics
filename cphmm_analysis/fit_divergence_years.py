@@ -25,6 +25,7 @@ def div_to_years(div, gen_per_day=config.gen_per_day, mut_rate=config.mut_rate, 
     mut_per_year = mut_rate * day_per_year * gen_per_day
     return div / mut_per_year
 
+# loading cphmm inference results
 infer_summary = pd.read_csv(config.cphmm_res_path / '241022_inference_summary_full.tsv', sep='\t')
 infer_summary.set_index(['genome1', 'genome2'], inplace=True)
 print(infer_summary.shape)
@@ -45,10 +46,10 @@ infer_summary['div_years_binned'] = div_to_years(infer_summary['est_div'])
 infer_summary['div_years'] = div_to_years(infer_summary['naive_div'])
 
 
-fig_path = config.project_path / 'cphmm_analysis' / 'close_pair_figs'
 ################################################################
 # fit trend per species
 ################################################################
+fig_path = config.project_path / 'cphmm_analysis' / 'close_pair_figs'
 species_trend = pd.DataFrame(columns=['species', 'b', 'year_at_10perc', 'num_pairs', 'genome_len'])
 fit_val = 'div_years_binned'
 with PdfPages(fig_path / 'perc_id_species_trend.pdf') as pdf:
@@ -137,7 +138,7 @@ for ax in axes[:, 1]:
 fig.text(0.5, 0.02, 'Fraction of identical genes (%)', ha='center', fontsize=10)
 fig.text(0.01, 0.5, 'Clonal divergence (years)', va='center', rotation='vertical', fontsize=10)
 
-fig_path = config.supp_fig_path / 'test_perc_id_trend_examples.pdf'
+fig_path = config.supp_fig_path / 'perc_id_trend_examples.pdf'
 fig.savefig(fig_path, bbox_inches='tight')
 
 ################################################################
@@ -149,7 +150,7 @@ median_val = species_trend['year_at_10perc'].median()
 plt.axvline(median_val, color='tab:orange', linestyle='--', label='median={0:.0f} years'.format(median_val))
 plt.xlabel('Clonal divergence at \n10% identiacal fraction (years)')
 plt.legend()
-plt.savefig(config.supp_fig_path / 'test_perc_id_trend_hist.pdf', bbox_inches='tight')
+plt.savefig(config.supp_fig_path / 'perc_id_trend_hist.pdf', bbox_inches='tight')
 
 
 ################################################################
@@ -191,4 +192,4 @@ plt.ylabel('Clonal divergence (years)')
 plt.xlabel('Fraction of identical genes (%)')
 plt.legend(loc='upper right')
 
-plt.savefig(config.supp_fig_path / 'test_perc_id_trend_full.pdf', bbox_inches='tight')
+plt.savefig(config.supp_fig_path / 'perc_id_trend_full.pdf', bbox_inches='tight')
