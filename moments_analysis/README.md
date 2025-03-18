@@ -18,4 +18,6 @@ The pipeline is defined in the `Snakefile` and can be executed by running:
 snakemake -j <number_of_jobs>
 ```
 
-## 
+## Population-specific SNV analysis
+- `plot_private_SNVs.py` contains codes for computing the probabilities of observing population-specific (or private) SNVs in the data. The script also generates a plot comparing a null free migration scenario with the fitted Moments model.
+- `plot_private_SNVs_model.py` plots the predicted private SNV probabilities for simulated demographic models.

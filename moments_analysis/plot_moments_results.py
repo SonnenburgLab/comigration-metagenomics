@@ -8,6 +8,7 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import config
+from utils import metadata_utils
 
 def main():
     parser = argparse.ArgumentParser(description='Plot moments results.')
@@ -28,6 +29,10 @@ def main():
 
     moments_figure_path = config.moments_path / 'moments_figures'
     moments_figure_path.mkdir(exist_ok=True)
+
+    databatch = sfs_batch.split('_')[0]
+    metadata = metadata_utils.MetadataHelper(databatch)
+    print("Total number of species: {}".format(metadata.species.shape[0]))
 
     print("Print {} passed genome filter".format(moments_results.shape[0]))
 

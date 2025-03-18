@@ -27,6 +27,59 @@ def plot_residual(ax, data, model, mask_singletons=False):
     )
     return resid
 
+def plot_one_species(axes, moments_results, species):
+    proj = moments_results.loc[species, ['Hadza_projection', 'Tsimane_projection']].astype(int).to_list()
+    data, _ = moments_utils.load_SFS_projection(species, 
+                                                sfs_folder=config.sfs_path / f'{config.databatch}_full', 
+                                                focal_pops=['Hadza', 'Tsimane'])
+    model = moments_utils.prep_model(moments_results.loc[species], moments.Demographics2D.split_mig, data,
+                                        model_name='split_mig')
+    f_h = data.marginalize([1])
+    f_t = data.marginalize([0])
+    model_h = model.marginalize([1])
+    model_t = model.marginalize([0])
+
+    axes[0].plot(f_t, 'o', color='tab:blue', label='Data', alpha=0.8, markersize=3, markerfacecolor='none')
+    axes[0].plot(model_t, '-o', color='tab:orange', label='Model', alpha=0.8, markersize=1.5, linewidth=0.5)
+    axes[0].set_title(f'Tsimane', pad=2)
+    axes[0].set_yscale('log')
+    axes[0].set_xlabel('Minor allele count', labelpad=0.5)
+    axes[0].set_ylabel(species + '\n\nNum observed', labelpad=0.5)
+
+    axes[1].plot(f_h, 'o', color='tab:blue', label='Data', alpha=0.8, markersize=3, markerfacecolor='none')
+    axes[1].plot(model_h, '-o', color='tab:orange', label='Model', alpha=0.8, markersize=1.5, linewidth=0.5)
+    axes[1].set_xlabel('Minor allele count', labelpad=0.5)
+    axes[1].set_title(f'Hadza', pad=2)
+    axes[1].set_yscale('log')
+
+
+    axes[0].axvspan(0, 1.5, color='gray', alpha=0.5)
+    axes[0].set_xlim(xmin=0)
+    axes[1].axvspan(0, 1.5, color='gray', alpha=0.5)
+    axes[1].set_xlim(xmin=0)
+
+    moments.Plotting.plot_single_2d_sfs(data, vmin=1, ax=axes[2], cmap='viridis')
+    axes[2].set_xlabel('Tsimane', labelpad=0)
+    axes[2].set_ylabel('Hadza', labelpad=0)
+    axes[2].set_title('Data', pad=2)
+    moments.Plotting.plot_single_2d_sfs(model, vmin=1, ax=axes[3], cmap='viridis',
+                                        pop_ids=['Hadza', 'Tsimane'])
+    axes[3].set_xlabel('Tsimane', labelpad=0)
+    axes[3].set_ylabel('Hadza', labelpad=0)
+    axes[3].set_title('Model', pad=2)
+
+    resid = plot_residual(axes[4], data, model, mask_singletons=False)
+    axes[4].set_xlabel('Tsimane', labelpad=0)
+    axes[4].set_ylabel('Hadza', labelpad=0)
+    axes[4].set_title(r'$\mathrm{Resid}=(\mathrm{Model}-\mathrm{Data})/\sqrt{\mathrm{Model}}$', pad=2)
+
+    flatresid = np.compress(np.logical_not(resid.mask.ravel()), resid.ravel())
+    bins = np.linspace(-5, 5, 20)
+    axes[5].hist(flatresid, bins=bins, color='tab:blue', density=True)
+    axes[5].set_xlim(-5, 5)
+    axes[5].set_yticks([])
+    axes[5].set_title('Resid histogram', pad=2)
+
 def main():
     parser = argparse.ArgumentParser(description='Plot moments SFS results.')
     parser.add_argument('--pops', type=str, nargs=2, required=True, help='Pairs of populations to use')
@@ -56,57 +109,7 @@ def main():
     plt.subplots_adjust(hspace=0.7, wspace=0.5)
 
     for i, species in enumerate(species_to_plot):
-        proj = moments_results.loc[species, ['Hadza_projection', 'Tsimane_projection']].astype(int).to_list()
-        data, _ = moments_utils.load_SFS_projection(species, 
-                                                 sfs_folder=config.sfs_path / f'{config.databatch}_full', 
-                                                 focal_pops=['Hadza', 'Tsimane'])
-        model = moments_utils.prep_model(moments_results.loc[species], moments.Demographics2D.split_mig, data,
-                                         model_name='split_mig')
-        f_h = data.marginalize([1])
-        f_t = data.marginalize([0])
-        model_h = model.marginalize([1])
-        model_t = model.marginalize([0])
-
-        axes[i, 0].plot(f_t, 'o', color='tab:blue', label='Data', alpha=0.8, markersize=3, markerfacecolor='none')
-        axes[i, 0].plot(model_t, '-o', color='tab:orange', label='Model', alpha=0.8, markersize=1.5, linewidth=0.5)
-        axes[i, 0].set_title(f'Tsimane', pad=2)
-        axes[i, 0].set_yscale('log')
-        axes[i, 0].set_xlabel('Minor allele count', labelpad=0.5)
-        axes[i, 0].set_ylabel(species + '\n\nNum observed', labelpad=0.5)
-
-        axes[i, 1].plot(f_h, 'o', color='tab:blue', label='Data', alpha=0.8, markersize=3, markerfacecolor='none')
-        axes[i, 1].plot(model_h, '-o', color='tab:orange', label='Model', alpha=0.8, markersize=1.5, linewidth=0.5)
-        axes[i, 1].set_xlabel('Minor allele count', labelpad=0.5)
-        axes[i, 1].set_title(f'Hadza', pad=2)
-        axes[i, 1].set_yscale('log')
-
-
-        axes[i, 0].axvspan(0, 1.5, color='gray', alpha=0.5)
-        axes[i, 0].set_xlim(xmin=0)
-        axes[i, 1].axvspan(0, 1.5, color='gray', alpha=0.5)
-        axes[i, 1].set_xlim(xmin=0)
-
-        moments.Plotting.plot_single_2d_sfs(data, vmin=1, ax=axes[i, 2], cmap='viridis')
-        axes[i, 2].set_xlabel('Tsimane', labelpad=0)
-        axes[i, 2].set_ylabel('Hadza', labelpad=0)
-        axes[i, 2].set_title('Data', pad=2)
-        moments.Plotting.plot_single_2d_sfs(model, vmin=1, ax=axes[i, 3], cmap='viridis',
-                                            pop_ids=['Hadza', 'Tsimane'])
-        axes[i, 3].set_xlabel('Tsimane', labelpad=0)
-        axes[i, 3].set_ylabel('Hadza', labelpad=0)
-        axes[i, 3].set_title('Model', pad=2)
-
-        resid = plot_residual(axes[i, 4], data, model, mask_singletons=False)
-        axes[i, 4].set_xlabel('Tsimane', labelpad=0)
-        axes[i, 4].set_ylabel('Hadza', labelpad=0)
-        axes[i, 4].set_title(r'$\mathrm{Resid}=(\mathrm{Model}-\mathrm{Data})/\sqrt{\mathrm{Model}}$', pad=2)
-
-        flatresid = np.compress(np.logical_not(resid.mask.ravel()), resid.ravel())
-        bins = np.linspace(-5, 5, 20)
-        axes[i, 5].hist(flatresid, bins=bins, color='tab:blue', density=True)
-        axes[i, 5].set_xlim(-5, 5)
-        axes[i, 5].set_yticks([])
-        axes[i, 5].set_title('Resid histogram', pad=2)
+        plot_one_species(axes[i, :], moments_results, species)
     axes[0, 0].legend()
 
     fig.savefig(config.moments_path / 'moments_figures' / f'{sfs_batch}_full_sfs.pdf', dpi=300, bbox_inches='tight')

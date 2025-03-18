@@ -40,7 +40,10 @@ if __name__ == '__main__':
     # passed_species = pd.read_csv(config.intermediate_data_path / 'fig4_data.csv', index_col=0)
     passed_species = pd.read_csv(config.moments_path / 'moments_dat' / f'{sfs_batch}__{model_name}__{pops[0]}__{pops[1]}_cleaned.csv', index_col=0)
 
+    ################################################################
+    # Computing the private SNV probabilities
     # only need to run once
+    ################################################################
     # compute_and_save_likelihoods(sfs_batch, passed_species)
 
     species_results = {}
