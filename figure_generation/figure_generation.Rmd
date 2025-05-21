@@ -1,0 +1,1193 @@
+---
+title: "figure_generation"
+output: html_document
+date: '2025-05-21'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggimage)
+library(gtools)
+
+summarize = dplyr::summarize
+```
+
+## Load ANI / PercId Data
+
+```{r read_hgt_data}
+genome_source = genomes_with_meta_filtered_with_rep_genome_for_write %>%
+  dplyr::select(genome, study) %>%
+  rowwise() %>%
+  mutate(genome = paste0(genome, '.fa'))
+  
+all_hgt_data = read_csv('/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/input_data/hgt_data/global_ani_percid_data_v2.csv') %>%
+  dplyr::rename(query = querry, identical = identicle) %>%
+  left_join(genome_source, by=c('query'='genome')) %>%
+  dplyr::rename(study_x = study) %>%
+  left_join(genome_source, by=c('reference'='genome')) %>%
+  dplyr::rename(study_y = study) %>%
+  mutate(
+    Comparison = factor(ifelse(study_x != study_y, 'Between populations', 'Within populations'), levels=c('Within populations', 'Between populations')),
+    d_i = 100*(1-ani),
+    f_i = perc_id, 
+    name = str_replace(name, '_v8', '')) 
+
+# %>%
+#   rowwise() %>%
+#   mutate(cpop2 = ifelse(cpop == 'Different', 'Between populations', 'Within populations'),
+#          Comparison = factor(cpop2, levels=c('Within populations', 'Between populations')),
+#          d_i = 100*(1-ani),
+#          f_i = perc_id,
+#          name = str_replace(name, '_v8', '')) 
+        
+hgt_data = all_hgt_data %>%
+  filter(name %in% rep_genome_map$species)
+
+ht_hgt_data = hgt_data %>% 
+  filter(study_x %in% c('Hadza', 'Tsimane') & study_y %in% c('Hadza', 'Tsimane')) %>% 
+  ungroup() %>%
+  mutate(ht_comparison = case_when(
+    study_x == 'Hadza' & study_y == 'Hadza' ~ 'Hadza-Hadza',
+    study_x == 'Tsimane' & study_y == 'Tsimane' ~ 'Tsimane-Tsimane',
+    study_x != study_y ~ 'Hadza-Tsimane'
+  ),
+  ht_comparison = factor(ht_comparison, levels=c('Hadza-Hadza', 'Tsimane-Tsimane', 'Hadza-Tsimane')))
+
+ht_hgt_data %>% pull(name) %>% unique() %>% length()
+
+```
+
+## ANI-based analysis and plotting
+
+```{r }
+
+ani_dist_full = ggplot(ht_hgt_data, aes(x=ani*100, fill=ht_comparison)) +
+  geom_density(alpha=0.5, adjust=1/2, trim=FALSE) +
+  scale_fill_manual(values=c("#00b894", "#e17055", "#6c5ce7"), name="Comparison") +
+  scale_x_continuous(limits = c(96, 100), expand = c(0, 0)) +
+  scale_y_continuous(limits = c(0, 0.75), expand = c(0, 0)) +
+  coord_cartesian(xlim = c(96, 100)) +
+  ylab('Density') +
+  xlab('Average Nucleotide Identity (%)') +
+  theme_classic() +
+  theme(legend.position = c(0.2, 0.8))
+
+ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/ani_full_dist_density.v2.pdf',
+       plot = ani_dist_full,
+       width=6, height=5)
+
+
+ani9975_boxplot = ggplot(ht_hgt_data %>% filter(ani >= 0.9975), aes(y=ani*100, x=ht_comparison, fill=ht_comparison)) +
+  geom_boxplot(alpha=0.6) +
+  scale_fill_manual(values=c("#00b894", "#e17055", "#6c5ce7")) +
+  scale_y_continuous(limits=c(99.75, 100.02), breaks=c(99.75, 99.8, 99.85, 99.9, 99.95, 100)) +
+  scale_x_discrete(labels=c('H-H', 'T-T', 'H-T'), limits = rev(levels(ht_hgt_data$ht_comparison))) +
+  ylab('Average Nucleotide Identity (%)') +
+  xlab('Comparison') +
+  coord_flip() +
+  theme_classic() +
+  theme(legend.position = "none")
+
+ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/ani_9975_boxplot.v2.pdf',
+       plot = ani9975_boxplot,
+       width=3, height=2)
+
+
+t.test(ht_hgt_data %>% filter(ani >= 0.9975) %>% filter(ht_comparison == 'Hadza-Hadza') %>% pull(ani),
+            ht_hgt_data %>% filter(ani >= 0.9975) %>% filter(ht_comparison == 'Tsimane-Tsimane') %>% pull(ani))
+
+t.test(ht_hgt_data %>% filter(ani >= 0.9975) %>% filter(ht_comparison == 'Hadza-Hadza') %>% pull(ani),
+            ht_hgt_data %>% filter(ani >= 0.9975) %>% filter(ht_comparison == 'Hadza-Tsimane') %>% pull(ani))
+
+t.test(ht_hgt_data %>% filter(ani >= 0.9975) %>% filter(ht_comparison == 'Tsimane-Tsimane' | ht_comparison == 'Hadza-Hadza') %>% pull(ani),
+            ht_hgt_data %>% filter(ani >= 0.9975) %>% filter(ht_comparison == 'Hadza-Tsimane') %>% pull(ani))
+
+```
+
+### 
+
+```{r }
+library(metap)
+
+
+ggplot(ht_hgt_data %>% filter(name == 'Bulleidia_sp905194705'), aes(x=ani*100, fill=ht_comparison)) +
+  geom_density(alpha=0.5, adjust=1/2, trim=FALSE) +
+  scale_fill_manual(values=c("#00b894", "#e17055", "#6c5ce7"), name="Comparison") +
+  scale_x_continuous(limits = c(96, 100), expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  coord_cartesian(xlim = c(96, 100)) +
+  ylab('Density') +
+  xlab('Average Nucleotide Identity (%)') +
+  theme_classic() +
+  theme(legend.position = c(0.2, 0.8))
+
+species_p_values = ht_hgt_data %>%
+  group_by(name) %>%
+  nest() %>%  # Nest data frame by species_name
+  mutate(anova = map(data, ~ aov(ani ~ cpop2, data = .))) %>%  # Apply ANOVA to each subgroup
+  mutate(tidy_result = map(anova, tidy)) %>%  # Use broom::tidy to format the result
+  unnest(tidy_result) %>%  # Unnest the results to create a data frame
+  select(-data, -anova) %>% 
+  filter(term == 'cpop2') %>% 
+  arrange(p.value)
+  pull(p.value) 
+
+combined_pvalue = sumlog(species_p_values)
+
+ht_hgt_data %>% pull(name) %>% unique() %>% length()
+
+
+```
+
+### FST Calc
+
+```{r }
+total_pop_ani = ht_hgt_data %>%
+  # filter(Comparison == 'Between populations') %>%
+  group_by(name) %>%
+  summarise(total_pop_ani = 1-mean(ani)) 
+
+within_pop_ani = ht_hgt_data %>%
+  filter(Comparison == 'Within populations') %>%
+  group_by(name) %>%
+  summarise(within_pop_ani = 1-mean(ani))  
+
+within_and_total_ani_df = left_join(total_pop_ani, within_pop_ani) %>%
+  mutate(fst = (total_pop_ani - within_pop_ani) / total_pop_ani) 
+
+fst_ani_plot = ggplot(within_and_total_ani_df, aes(x=fst)) +
+  geom_histogram(bins=20) +
+  geom_vline(xintercept=0.25, linetype='dashed', color='grey') +
+  scale_x_continuous(limits=c(-.06,1), expand=c(0,0)) +
+  scale_y_continuous(limits=c(0, 300), expand=c(0,0)) +
+  theme_classic() +
+  ylab('Number of species') +
+  xlab('FST')
+
+# ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/fst_histogram.v2.pdf',
+#        plot = fst_ani_plot,
+#        height=2, width=2.5)
+
+within_and_total_ani_df %>% 
+  summarise(mean_fst = mean(fst),
+            median_fst = median(fst))
+
+```
+
+
+## Joint distribution plots
+
+### Bulleidia example
+```{r }
+bulleidia_example_joint_distribution = ggplot() +
+  annotate("rect", xmin = 97, xmax = 100, ymin = 0.1, ymax = 1,
+           fill = "black", color = "gray", linetype = "dashed", alpha=0.1) +
+  geom_point(data=ht_hgt_data %>% filter(name == 'Agathobacter_rectalis'), aes(x=100*ani, y=f_i, color=ht_comparison), alpha=1, size=3, stroke=0.05) +
+  scale_x_continuous(limits = c(96, 100), expand = c(0.0, 0)) +
+  scale_y_continuous(limits = c(0, 1), expand = c(0.0, 0.01), labels=c('0', '25', '50', '75', '100')) +
+  scale_color_manual(values=RColorBrewer::brewer.pal(6, 'Dark2')[1:3]) +
+  ylab('Percent of identical genes (%)') +
+  xlab('Average Nucleotide Identity (%)') +
+  theme_classic() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.background = element_rect(size=0.3, linetype="solid", colour ="black"),
+        legend.position = 'bottom')
+
+# ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/joint_distribution_example.pdf',
+#        plot = bulleidia_example_joint_distribution,
+#        height=4, width=4)
+
+bulleidia_example_joint_distribution_facet = ggplot() +
+  annotate("rect", xmin = 96, xmax = 100, ymin = 0.1, ymax = 1,
+           fill = "black", color = "gray", linetype = "dashed", alpha=0.07) +
+  geom_point(data=ht_hgt_data %>% filter(name == 'Bulleidia_sp905194705'), aes(x=100*ani, y=f_i, color=ht_comparison), alpha=1, size=3, stroke=0.05) +
+  scale_x_continuous(limits = c(96, 100), expand = c(0.0, 0)) +
+  scale_y_continuous(limits = c(0, 1), expand = c(0.0, 0.01), labels=c('0', '25', '50', '75', '100')) +
+  scale_color_manual(values=RColorBrewer::brewer.pal(6, 'Dark2')[1:3]) +
+  facet_wrap(~ht_comparison, ncol=3) +
+  ylab('Percent of identical genes (%)') +
+  xlab('Average Nucleotide Identity (%)') +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.background = element_rect(size=0.3, linetype="solid", colour ="black"),
+        legend.position = 'none')
+
+ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/joint_distribution_example_faceted.v2.pdf',
+       plot = bulleidia_example_joint_distribution_facet,
+       height=2.5, width=7)
+
+# Percentage of comparisons with perc_id > 0.1 for each comparison group
+ht_hgt_data %>% 
+  filter(name == 'Bulleidia_sp905194705') %>% 
+  group_by(ht_comparison) %>% 
+  summarise(percentage = mean(perc_id > 0.1) * 100)
+```
+
+### All species
+
+```{r }
+library(ggdensity)
+joint_dist_density_pop_facet_plot = ggplot(ht_hgt_data %>% mutate(ht_comparison = factor(ht_comparison, levels=c('Hadza-Hadza', 'Tsimane-Tsimane', 'Hadza-Tsimane'))), aes(x=100*ani, y=100*f_i, fill=ht_comparison)) +
+  annotate("rect", xmin = 96, xmax = 100, ymin = 10, ymax = 100,
+           fill = "black", color = "gray", linetype = "dashed", alpha=0.07) +
+  facet_wrap(~ht_comparison, ncol=3) +
+  geom_hdr(xlim = c(96, 100), ylim = c(0, 100), method='kde', n=30, probs=c(0.999, 0.99, 0.95, 0.8, 0.5, 0.25)) +
+  scale_x_continuous(limits = c(96, 100), expand = c(0.0, 0)) +
+  scale_y_continuous(limits = c(0, 100), expand = c(0.0, 0), labels=c('0', '25', '50', '75', '100')) +
+  scale_fill_manual(values=c("#00b894", "#e17055", "#6c5ce7")) +
+  ylab('Percent of identical genes (%)') +
+  xlab('Average Nucleotide Identity (%)') +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.background = element_rect(size=0.3, linetype="solid", colour ="black"),
+        legend.position = 'none')
+
+ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/joint_distribution_all_species_horiz.v2.pdf',
+       plot = joint_dist_density_pop_facet_plot,
+       height=2.5, width=7)
+
+ht_hgt_data %>%
+  ungroup() %>%
+  group_by(ht_comparison) %>% 
+  summarise(percentage = mean(perc_id >= 0.1) * 100)
+
+ht_hgt_data %>%
+  ungroup() %>%
+  summarise(percentage = mean(perc_id >= 0.1) * 100)
+
+ht_hgt_data %>% 
+  group_by(ht_comparison) %>% 
+  filter(perc_id >= 0.1) %>% 
+  summarise(num_clonal = n()) %>%
+  spread(key='ht_comparison', value='num_clonal') %>%
+  mutate(within_pop_intra = `Hadza-Hadza`+`Tsimane-Tsimane`,
+         total_intra = `Hadza-Hadza`+`Tsimane-Tsimane` + `Hadza-Tsimane`,
+         fraction_intra = within_pop_intra / total_intra)
+
+ht_hgt_data %>%
+  ungroup() %>%
+  filter(perc_id>=0.1) %>%
+  group_by(name) %>%
+  summarise(num_spec = n()) %>%
+  arrange(num_spec)
+```
+
+#### All species - PERMUTE
+
+```{r }
+
+ht_hgt_data_perm = ht_hgt_data
+ht_hgt_data_perm$study_x = sample(ht_hgt_data_perm$study_x)
+ht_hgt_data_perm$study_y = sample(ht_hgt_data_perm$study_y)
+
+ht_hgt_data_permuted = ht_hgt_data_perm %>% 
+  mutate(ht_comparison = case_when(
+    study_x == 'Hadza' & study_y == 'Hadza' ~ 'Hadza-Hadza',
+    study_x == 'Tsimane' & study_y == 'Tsimane' ~ 'Tsimane-Tsimane',
+    study_x != study_y ~ 'Hadza-Tsimane'
+  ),
+  ht_comparison = factor(ht_comparison, levels=c('Hadza-Hadza', 'Tsimane-Tsimane', 'Hadza-Tsimane')))
+         
+         
+permuted_joint_dist_density_pop_facet_plot = ggplot(ht_hgt_data_permuted, aes(x=100*ani, y=100*f_i, fill=ht_comparison)) +
+  annotate("rect", xmin = 96, xmax = 100, ymin = 10, ymax = 100,
+           fill = "black", color = "gray", linetype = "dashed", alpha=0.07) +
+  facet_wrap(~ht_comparison, ncol=3) +
+  geom_hdr(xlim = c(96, 100), ylim = c(0, 100), method='kde', n=30, probs=c(0.999, 0.99, 0.95, 0.8, 0.5, 0.25)) +
+  scale_x_continuous(limits = c(96, 100), expand = c(0.0, 0)) +
+  scale_y_continuous(limits = c(0, 100), expand = c(0.0, 0), labels=c('0', '25', '50', '75', '100')) +
+  scale_fill_manual(values=c("#00b894", "#e17055", "#6c5ce7")) +
+  ylab('Percent of identical genes (%)') +
+  xlab('Average Nucleotide Identity (%)') +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.background = element_rect(size=0.3, linetype="solid", colour ="black"),
+        legend.position = 'none')
+
+
+ht_hgt_data_permuted %>%
+  ungroup() %>%
+  group_by(ht_comparison) %>% 
+  summarise(percentage = mean(perc_id >= 0.1) * 100)
+
+
+hgt_data_perm = hgt_data
+hgt_data_perm$study_x = sample(hgt_data_perm$study_x)
+hgt_data_perm$study_y = sample(hgt_data_perm$study_y)
+
+permuted_sharing_categories = ht_hgt_data_permuted %>%
+  ungroup() %>%
+  filter(study_x %in% c('Hadza', 'Tsimane', 'Europe', 'NorthAmerica', 'Asia')) %>%
+  filter(study_y %in% c('Hadza', 'Tsimane', 'Europe', 'NorthAmerica', 'Asia')) %>%
+  mutate(is_recent = ifelse(perc_id >= 0.1, 'Y', 'N')) %>%
+  group_by(study_x, study_y, name, is_recent) %>%
+  summarise(num = n()) %>%
+  spread(key='is_recent', value='num', fill = 0.) %>%
+  mutate(frac = 100*Y/(Y+N)) %>% 
+  filter(study_x %in% c('Hadza', 'Tsimane') & study_y %in% c('Hadza', 'Tsimane')) %>% 
+  filter(study_x == 'Hadza' & study_y == 'Tsimane') %>% 
+  mutate(sharing_category = case_when(
+    frac == 0. ~ '0%',
+    frac < 5 ~ '0-5%',
+    frac >= 5 ~ '5-100%'
+  ),
+  sharing_category = factor(sharing_category, levels=c('0%', '0-5%', '5-100%'))) 
+
+permuted_sharing_categories %>%
+  group_by(sharing_category) %>%
+  summarise(n()/5.41)
+```
+
+## H-T Sharing Rate Subsetting
+
+### Setup analysis
+```{r }
+
+points_df = data.frame(pop = c('Europe', 'Hadza', 'Asia', 'Tsimane', 'NorthAmerica'), 
+                       x = c(0.075, 0.55, 2.1, 5.9, 5.3), 
+                       y = c(1.65, -0.25, 1.35, -0.6, 1.3), 
+                       image="/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/meta_data/world_map_v2.png")
+
+pop_sharing_df = hgt_data %>%
+  ungroup() %>%
+  filter(study_x %in% c('Hadza', 'Tsimane', 'Europe', 'NorthAmerica', 'Asia')) %>%
+  filter(study_y %in% c('Hadza', 'Tsimane', 'Europe', 'NorthAmerica', 'Asia')) %>%
+  mutate(is_recent = ifelse(perc_id >= 0.1, 'Y', 'N')) %>%
+  group_by(study_x, study_y, name, is_recent) %>%
+  summarise(num = n()) %>%
+  spread(key='is_recent', value='num', fill = 0.) %>%
+  mutate(frac = 100*Y/(Y+N)) %>% 
+  left_join(points_df %>% dplyr::rename(study_x=1, pop_src_x=2, pop_src_y=3), by='study_x') %>%
+  left_join(points_df %>% dplyr::rename(study_y=1, pop_dest_x=2, pop_dest_y=3), by='study_y')
+
+filtered_ht_pop_sharing = pop_sharing_df %>% 
+  filter(study_x %in% c('Hadza', 'Tsimane') & study_y %in% c('Hadza', 'Tsimane')) %>% 
+  filter(study_x == 'Hadza' & study_y == 'Tsimane') %>% 
+  mutate(sharing_category = case_when(
+    frac == 0. ~ '0%',
+    frac < 5 ~ '0-5%',
+    frac >= 5 ~ '5-100%'
+  ),
+  sharing_category = factor(sharing_category, levels=c('0%', '0-5%', '5-100%')))
+
+filtered_ht_pop_sharing %>% pull(name) %>% unique() %>% length()
+filtered_ht_pop_sharing %>% ungroup() %>% select(name, sharing_category) %>% group_by(sharing_category) %>% summarise(n())
+
+filtered_ht_pop_sharing %>% arrange(desc(frac))
+
+hgt_data %>% 
+  pull(study_x) %>% unique()
+```
+
+### Map plots
+
+```{r }
+
+
+species_filtered_pop_sharing_df = pop_sharing_df %>% 
+  filter(name %in% c('Bulleidia_sp905194705', 'Akkermansia_muciniphila', 'Treponema_D_succinifaciens', 'Bacteroides_ovatus', 'Ruminococcus_E_bromii_B', 'Phocaeicola_vulgatus', 'Escherichia_coli', 'Prevotella_faecis')) %>%
+  mutate(name = factor(name, levels=c(c('Bulleidia_sp905194705', 'Treponema_D_succinifaciens', 'Prevotella_faecis', 'Ruminococcus_E_bromii_B', 'Akkermansia_muciniphila', 'Bacteroides_ovatus', 'Escherichia_coli', 'Phocaeicola_vulgatus'))))
+
+
+# mag_counts = species_filtered_pop_sharing_df %>% 
+#   group_by(name, study_x) %>% 
+#   summarise(tot = sqrt(sum(N) + sum(Y))) %>% 
+#   left_join(points_df, by=c('study_x'='pop')) %>%
+#   arrange()
+
+mag_counts = genome_counts_by_pop %>%
+  mutate(name = str_replace_all(str_replace(strsplit(gtdb_r220_taxonomy, ';')[[1]][7], 's__', ''), ' ', '_')) %>%
+  ungroup() %>%
+  select(name, Hadza, Tsimane, Asia, Europe, NorthAmerica) %>%
+  gather(key='study_x', value='tot', -name) %>%
+  arrange(name) %>%
+  left_join(points_df, by=c('study_x'='pop')) %>%
+  filter(name %in% c(species_filtered_pop_sharing_df %>% pull(name) %>% unique())) %>% 
+  filter(tot > 0) %>%
+  mutate(name = factor(name, levels=c(c('Bulleidia_sp905194705', 'Treponema_D_succinifaciens', 'Prevotella_faecis', 'Ruminococcus_E_bromii_B', 'Akkermansia_muciniphila', 'Bacteroides_ovatus', 'Escherichia_coli', 'Phocaeicola_vulgatus'))))
+  
+
+star_plots = ggplot() +
+  geom_image(data=points_df, aes(image = image), x = 3, y = 0.3, size = 1) +
+  # Inter-pop curves, northern hemi
+  geom_curve(data=species_filtered_pop_sharing_df %>% filter(study_x != study_y) %>% filter(!(study_x == 'MetaHIT' & study_y == 'Tsimane' | study_x == 'Hadza' & study_y == 'Tsimane')), 
+               aes(x=pop_src_x, xend=pop_dest_x, y=pop_src_y, yend=pop_dest_y, size=frac), 
+               color='#fc97a5', alpha=0.4, curvature=-0.1) +
+  # Inter-pop curves, southern hemi
+  geom_curve(data=species_filtered_pop_sharing_df %>% filter(study_x != study_y) %>% filter(study_x == 'MetaHIT' & study_y == 'Tsimane' | study_x == 'Hadza' & study_y == 'Tsimane'), 
+               aes(x=pop_src_x, xend=pop_dest_x, y=pop_src_y, yend=pop_dest_y, size=frac), 
+               color='#fc97a5', alpha=0.4, curvature=0.1) +
+  # Self-pop curves northern hemi
+  geom_curve(data=species_filtered_pop_sharing_df %>% filter(study_x == study_y) %>% filter(!study_x %in% c('Hadza', 'Tsimane')), 
+             aes(x=pop_src_x, xend=pop_dest_x+0.05, y=pop_src_y, yend=pop_dest_y-0.05, size=frac), 
+             curvature = -25, color='#fc97a5', lineend='round', alpha=0.4) +
+  # Self-pop curves southern hemi
+  geom_curve(data=species_filtered_pop_sharing_df %>% filter(study_x == study_y) %>% filter(study_x %in% c('Hadza', 'Tsimane')), 
+             aes(x=pop_src_x, xend=pop_dest_x+0.05, y=pop_src_y, yend=pop_dest_y-0.05, size=frac), 
+             curvature = 25, color='#fc97a5', lineend='round', alpha=0.4) +
+  scale_size_continuous(range=c(0.01, 4), breaks=c(0, 25, 50, 75, 100)) +
+  geom_point(data=mag_counts, aes(x=x, y=y, size=tot)) +
+  guides(size=guide_legend('Recent lineage %')) +
+  facet_wrap(~name, nrow=2) +
+  theme_classic() +
+  xlim(0, 6) + 
+  ylim(-3, 4) +
+  theme(axis.line=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        strip.background = element_blank(),
+        legend.position="bottom")
+
+ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/map_plots_main_figure.v2.pdf',
+       plot = star_plots,
+       width=8, height=5)
+
+mag_counts %>% pull(tot) %>% max()
+```
+
+### Map plots big supp
+
+```{r }
+picked_names = filtered_ht_pop_sharing %>%
+  filter(!name %in% c('Bulleidia_sp905194705', 'Akkermansia_muciniphila', 'Treponema_D_succinifaciens', 'Bacteroides_ovatus', 'Ruminococcus_E_bromii_B', 'Phocaeicola_vulgatus', 'Escherichia_coli', 'Prevotella_faecis')) 
+
+
+zero_sharing_species = picked_names %>% filter(sharing_category == '0%') %>% pull(name) %>% unique() %>% sample(15)
+
+mid_sharing_species = picked_names %>% filter(sharing_category == '0-5%') %>% pull(name) %>% unique() %>% sample(5)
+
+high_sharing_species = picked_names %>% filter(sharing_category == '5-100%') %>% pull(name) %>% unique() %>% sample(10)
+
+high_sharing_species = c('Romboutsia_timonensis', 'Streptococcus_lutetiensis', 'Streptococcus_infantarius', 'Bacteroides_fragilis', 'Weissella_confusa', 'Brotaphodocola_catenula', 'CAG_273_sp000437855', 'UBA11512_sp003522145', 'Desulfovibrio_sp900556755', 'Clostridium_sp900540255')
+
+chosen_species = c(zero_sharing_species, mid_sharing_species, high_sharing_species)
+
+many_species_filtered_pop_sharing_df = pop_sharing_df %>% 
+  filter(name %in% chosen_species) %>%
+  mutate(name = factor(name, levels=c(chosen_species)))
+```
+
+
+```{r }
+
+# many_species_mag_counts = many_species_filtered_pop_sharing_df %>% 
+#   group_by(name, study_x) %>% 
+#   summarise(tot = sqrt(sum(N) + sum(Y))) %>% 
+#   left_join(points_df, by=c('study_x'='pop'))
+
+many_species_mag_counts = genome_counts_by_pop %>%
+  mutate(name = str_replace_all(str_replace(strsplit(gtdb_r220_taxonomy, ';')[[1]][7], 's__', ''), ' ', '_')) %>%
+  ungroup() %>%
+  select(name, Hadza, Tsimane, Asia, Europe, NorthAmerica) %>%
+  gather(key='study_x', value='tot', -name) %>%
+  arrange(name) %>%
+  left_join(points_df, by=c('study_x'='pop')) %>%
+  filter(name %in% chosen_species) %>% 
+  filter(tot > 0) %>%
+  mutate(name = factor(name, levels=c(chosen_species)))
+
+many_species_star_plots = ggplot() +
+  # geom_image(data=points_df, aes(image = image), x = 3, y = 0.3, size = 1) +
+  # Inter-pop curves, northern hemi
+  geom_curve(data=many_species_filtered_pop_sharing_df %>% filter(study_x != study_y) %>% filter(!(study_x == 'MetaHIT' & study_y == 'Tsimane' | study_x == 'Hadza' & study_y == 'Tsimane')), 
+               aes(x=pop_src_x, xend=pop_dest_x, y=pop_src_y, yend=pop_dest_y, size=frac), 
+               color='#fc97a5', alpha=0.4, curvature=-0.1) +
+  # Inter-pop curves, southern hemi
+  geom_curve(data=many_species_filtered_pop_sharing_df %>% filter(study_x != study_y) %>% filter(study_x == 'MetaHIT' & study_y == 'Tsimane' | study_x == 'Hadza' & study_y == 'Tsimane'), 
+               aes(x=pop_src_x, xend=pop_dest_x, y=pop_src_y, yend=pop_dest_y, size=frac), 
+               color='#fc97a5', alpha=0.4, curvature=0.1) +
+  # Self-pop curves northern hemi
+  geom_curve(data=many_species_filtered_pop_sharing_df %>% filter(study_x == study_y) %>% filter(!study_x %in% c('Hadza', 'Tsimane')), 
+             aes(x=pop_src_x, xend=pop_dest_x+0.05, y=pop_src_y, yend=pop_dest_y-0.05, size=frac), 
+             curvature = -25, color='#fc97a5', lineend='round', alpha=0.4) +
+  # Self-pop curves southern hemi
+  geom_curve(data=many_species_filtered_pop_sharing_df %>% filter(study_x == study_y) %>% filter(study_x %in% c('Hadza', 'Tsimane')), 
+             aes(x=pop_src_x, xend=pop_dest_x+0.05, y=pop_src_y, yend=pop_dest_y-0.05, size=frac), 
+             curvature = 25, color='#fc97a5', lineend='round', alpha=0.4) +
+  scale_size_continuous(range=c(0.01, 4)) +
+  geom_point(data=many_species_mag_counts, aes(x=x, y=y, size=tot)) +
+  guides(size=guide_legend('Recent lineage %')) +
+  facet_wrap(~name, ncol=5) +
+  theme_classic() +
+  xlim(0, 6) + 
+  ylim(-3, 4) +
+  theme(axis.line=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        strip.background = element_blank(),
+        legend.position="bottom")
+
+ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/map_plots_supplemental_figure.v2.pdf',
+       plot = many_species_star_plots,
+       width=10, height=15)
+
+```
+
+
+```{r }
+ht_strain_sharing_rate_cat_plot = ggplot(filtered_ht_pop_sharing, aes(x=sharing_category, fill=sharing_category)) +
+  geom_bar() +
+  theme_classic() +
+  scale_y_continuous(expand=c(0,0), limits=c(0, 600)) +
+  scale_fill_manual(values=c('#e84393', '#636e72', '#0984e3')) +
+  xlab('Hadza-Tsimane strain sharing rate') +
+  ylab('Number of species') +
+  theme(axis.text.x = element_text(angle = -45, vjust=0.0, hjust=0.1)) +
+  guides(fill=FALSE)
+
+ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/ht_sharing_category_barplot.v2.pdf',
+       ht_strain_sharing_rate_cat_plot,
+       width=2, height=3)
+
+
+perc5_100_shared_species = c(filtered_ht_pop_sharing %>% filter(sharing_category == '5-100%') %>% pull(name))
+
+perc5_100_interpop_sharing_df = pop_sharing_df %>%
+  ungroup() %>%
+  filter(name %in% perc5_100_shared_species) %>%
+  filter(study_x != study_y) %>%
+  group_by(study_x, study_y) %>%
+  summarise(mean_frac = mean(frac),
+            sd_frac = sd(frac)/sqrt(n())) %>%
+  mutate(study_combined = paste0(study_x, '-', study_y)) %>%
+  mutate(study_combined = case_when(
+    study_combined == 'NorthAmerica-Tsimane' ~ 'Tsimane-NorthAmerica',
+    study_combined == 'Asia-Tsimane' ~ 'Tsimane-Asia',
+    study_combined == 'Europe-Tsimane' ~ 'Tsimane-Europe',
+    study_combined == 'Europe-Hadza' ~ 'Hadza-Europe',
+    TRUE ~ study_combined
+  )) %>%
+  mutate(study_combined = factor(study_combined, levels=c('Hadza-Tsimane', 'Hadza-NorthAmerica', 'Hadza-Asia', 'Hadza-Europe', 'Tsimane-NorthAmerica', 'Tsimane-Asia', 'Tsimane-Europe', 'NorthAmerica-Asia', 'Europe-Asia', 'Europe-NorthAmerica')))
+
+high_sharing_cat_interpop_plot = ggplot(perc5_100_interpop_sharing_df, aes(x=study_combined, y=mean_frac)) +
+  geom_errorbar(aes(ymin = mean_frac - sd_frac, ymax = mean_frac + sd_frac, ymin = mean_frac - sd_frac), width=0.15) +
+  geom_bar(stat='identity', fill='#0984e3') +
+  theme_classic() +
+  scale_y_continuous(expand=c(0,0), limits=c(0, 60)) +
+  xlab('Populations') +
+  ylab('Interpopulation strain sharing rate') +
+  theme(axis.text.x = element_text(angle = -45, vjust=0.0, hjust=0.1))
+
+ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/high_sharing_category_population_barplot.v2.pdf',
+       high_sharing_cat_interpop_plot,
+       width=2, height=2.25)
+
+perc0_shared_species = c(filtered_ht_pop_sharing %>% filter(sharing_category == '0%') %>% pull(name))
+
+perc0_interpop_sharing_df = pop_sharing_df %>%
+  ungroup() %>%
+  filter(name %in% perc0_shared_species) %>%
+  filter(study_x != study_y) %>%
+  group_by(study_x, study_y) %>%
+  summarise(mean_frac = mean(frac),
+            sd_frac = sd(frac)/sqrt(n())) %>%
+  mutate(study_combined = paste0(study_x, '-', study_y)) %>%
+  mutate(study_combined = case_when(
+    study_combined == 'NorthAmerica-Tsimane' ~ 'Tsimane-NorthAmerica',
+    study_combined == 'Asia-Tsimane' ~ 'Tsimane-Asia',
+    study_combined == 'Europe-Tsimane' ~ 'Tsimane-Europe',
+    study_combined == 'Europe-Hadza' ~ 'Hadza-Europe',
+    TRUE ~ study_combined
+  )) %>%
+  mutate(study_combined = factor(study_combined, levels=c('Hadza-Tsimane', 'Hadza-NorthAmerica', 'Hadza-Asia', 'Hadza-Europe', 'Tsimane-NorthAmerica', 'Tsimane-Asia', 'Tsimane-Europe', 'NorthAmerica-Asia', 'Europe-Asia', 'Europe-NorthAmerica')))
+
+low_sharing_cat_interpop_plot = ggplot(perc0_interpop_sharing_df, aes(x=study_combined, y=mean_frac)) +
+  geom_errorbar(aes(ymin = mean_frac - sd_frac, ymax = mean_frac + sd_frac), width=0.15) +
+  geom_bar(stat='identity', fill='#e84393')+
+  theme_classic() +
+  scale_y_continuous(expand=c(0,0), limits=c(0, 60)) +
+  xlab('Populations') +
+  ylab('Interpopulation strain sharing rate') +
+  theme(axis.text.x = element_text(angle = -45, vjust=0.0, hjust=0.1))
+
+# ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/zero_sharing_category_population_barplot.pdf',
+#        low_sharing_cat_interpop_plot, 
+#        width=2, height=2.25)
+
+```
+
+#### HT sharing by prevalence
+
+```{r }
+
+filtered_ht_pop_sharing_w_prevalence = filtered_ht_pop_sharing %>%
+  left_join(prevalence_by_lifestyle, by='name')
+
+ggplot(filtered_ht_pop_sharing_w_prevalence, aes(x=`H-T`*100, y=Industrial*100, color=sharing_category)) +
+  geom_point(alpha=1) +
+  geom_text_repel(aes(label=name), size=3) +
+  theme_classic() +
+  xlab('Hadza-Tsimane Prevalence (%)') +
+  ylab('Industrial Prevalence (%)') +
+  labs(color = "H-T Sharing Rate")
+
+```
+
+```{r }
+prevalence_by_pop
+
+prevalence_pop_tsimane_filtered = prevalence_by_pop %>%
+  left_join(prevalence_by_lifestyle) %>%
+  filter(Tsimane > 0 | Hadza > 0) %>%
+  arrange(Tsimane) 
+
+
+prevalence_pop_tsimane_filtered = prevalence_pop_tsimane_filtered[order(prevalence_pop_tsimane_filtered$Industrial), ]
+
+
+scatter_plot <- ggplot(prevalence_pop_tsimane_filtered, aes(x=Tsimane*100, y=Hadza*100, color=Industrial*100)) +
+  geom_point(size=1.5) +
+  coord_fixed(ratio = 1) +
+  scale_x_continuous(limits=c(0, 100), expand=c(0, 0), name='Tsimane Prevalence (%)') +
+  scale_y_continuous(limits=c(0, 100), expand=c(0, 0), name='Hadza Prevalence (%)') +
+  scale_color_viridis_c(option='plasma', name='Industrial Prev.', limits=c(0, 100)) +
+  theme_classic() +
+  theme(panel.background = element_rect(fill = "white")) 
+
+# Create boxplot
+boxplot <- ggplot(prevalence_pop_tsimane_filtered %>% select(Hadza, Tsimane, Industrial) %>% gather(key='pop', value='prevalence', -gtdb_r220_taxonomy) %>% mutate(pop = factor(pop, levels=c('Hadza', 'Tsimane', 'Industrial'))), aes(x = pop, y = prevalence*100)) +
+  geom_violin(scale = "width", draw_quantiles=c(0.5)) +
+  scale_x_discrete(labels=c('Hadza', 'Tsimane', 'Ind.')) +
+  scale_y_continuous(expand=c(0,0)) +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.title.x = element_blank(),
+        axis.line = element_line(color = "black")) +
+  ylab('Prevalence')
+
+wilcox.test(prevalence_pop_tsimane_filtered %>% pull(Hadza),
+prevalence_pop_tsimane_filtered %>% pull(Tsimane))
+
+wilcox.test(prevalence_pop_tsimane_filtered %>% pull(Hadza),
+prevalence_pop_tsimane_filtered %>% pull(Industrial))
+
+wilcox.test(prevalence_pop_tsimane_filtered %>% pull(Tsimane),
+prevalence_pop_tsimane_filtered %>% pull(Industrial))
+
+
+ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/tsimane_prevalence_hadza_ind_scatter_v3.pdf',
+       scatter_plot,
+       width=5, height=4)
+
+ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/tsimane_prevalence_hadza_ind_violinplot_v3.pdf',
+       boxplot,
+       width=3, height=3)
+
+```
+## Shared identical genes
+
+```{r }
+table_parse = function(path) {
+  return(fread(path, sep=','))
+}
+
+## These are files made during our metagenomics "pre-processing" pipeline that summarises 
+## read and base counts.
+annotation_file_path = '/home/mmcarter/user_data/scripts/241010_identical_gene_parsing/annotations/'
+files <- list.files(path = annotation_file_path, pattern = ".csv")
+
+annotation_summary_df <- lapply(paste0(annotation_file_path, files), table_parse) %>% 
+  rbindlist() %>% 
+  mutate(COG = ifelse(COG == 'NF', 'S', COG),
+         COG = ifelse(COG == '-', 'S', COG)) 
+
+
+cog_summary = annotation_summary_df %>% 
+  group_by(COG) %>% 
+  summarise(n_cog = n()) %>% 
+  arrange(desc(n_cog)) %>%
+  mutate(COG_desc = case_when(
+    COG == "A" ~ "RNA processing and modification",
+    COG == "B" ~ "Chromatin Structure and dynamics",
+    COG == "C" ~ "Energy production and conversion",
+    COG == "D" ~ "Cell cycle control and mitosis",
+    COG == "E" ~ "Amino Acid metabolis and transport",
+    COG == "F" ~ "Nucleotide metabolism and transport",
+    COG == "G" ~ "Carbohydrate metabolism and transport",
+    COG == "H" ~ "Coenzyme metabolis",
+    COG == "I" ~ "Lipid metabolism",
+    COG == "J" ~ "Tranlsation",
+    COG == "K" ~ "Transcription",
+    COG == "L" ~ "Replication and repair",
+    COG == "M" ~ "Cell wall/membrane/envelop biogenesis",
+    COG == "N" ~ "Cell motility",
+    COG == "O" ~ "Post-translational modification, protein turnover, chaperone functions",
+    COG == "P" ~ "Inorganic ion transport and metabolism",
+    COG == "Q" ~ "Secondary Structure",
+    COG == "T" ~ "Signal Transduction",
+    COG == "U" ~ "Intracellular trafficing and secretion",
+    COG == "Y" ~ "Nuclear structure",
+    COG == "Z" ~ "Cytoskeleton",
+    COG == "R" ~ "General Functional Prediction only",
+    COG == "S" ~ "Function Unknown"
+  )) %>%
+  filter(!is.na(COG_desc))
+
+ggplot(cog_summary, aes(x=reorder(COG_desc, -n_cog), y=n_cog)) +
+  geom_bar(stat='identity') +
+  theme_classic() +
+  scale_y_continuous(expand=c(0,0)) +
+  theme(axis.text.x = element_text(angle = 315, hjust = 0),
+        plot.margin = margin(10, 85, 10, 10)) +
+  ylab('Number of genes') +
+  xlab('COG Category')
+
+
+seq_length = annotation_summary_df %>%
+  rowwise() %>%
+  mutate(seq_len = nchar(Sequence))
+
+ggplot(seq_length, aes(x=seq_len)) +
+  geom_histogram() + 
+  theme_classic() +
+  scale_y_continuous(expand=c(0,0)) +
+  scale_x_log10(expand=c(0,0)) +
+  ylab('Number of genes') + 
+  xlab('Gene length (number of amino acids; log scale)')
+
+annotation_summary_df %>%
+  group_by(`Species Name`) %>%
+  summarize(num_univ_id = n()) %>%
+  arrange(desc(num_univ_id))
+```
+
+
+## Compare between-pop to within-pop
+
+```{r }
+
+between_within_ht_sharing = pop_sharing_df %>% 
+  filter(study_x %in% c('Hadza', 'Tsimane') & study_y %in% c('Hadza', 'Tsimane')) %>% 
+  mutate(comp = ifelse(study_x == study_y, 'Within', 'Between')) %>%
+  ungroup() %>%
+  select(name, comp, N, Y) %>%
+  group_by(name, comp) %>%
+  summarise(sum_N = sum(N),
+            sum_Y = sum(Y)) %>%
+  mutate(new_frac = sum_Y / (sum_N + sum_Y)) %>%
+  select(-c(sum_N, sum_Y)) %>%
+  spread(key='comp', value='new_frac') %>%
+  mutate(ratio = Between / (Between + Within)) %>%
+  arrange(desc(Between)) 
+
+ggplot(between_within_ht_sharing, aes(x=Within*100, y=Between*100)) +
+  geom_point() +
+  geom_text_repel(aes(label=name), size=2) +
+  ylab('Between H-T sharing (%)') +
+  xlab('Within H or T sharing (%)') +
+  theme_classic()
+
+(between_within_ht_sharing %>% pull(name))[1:30]
+
+cat(paste(shQuote(one, type="cmd"), collapse=", "))
+```
+
+## Vanish-Blossum Shared-NotShared
+
+```{r }
+old_reps_bac_results = read_tsv('/home/mmcarter/user_data/scripts/240501_latest_gtdb_database/240510_old_reps_gtdb_results/gtdbtk.GTDB.bac120.summary.tsv') 
+
+old_reps_arc_results = read_tsv('/home/mmcarter/user_data/scripts/240501_latest_gtdb_database/240510_old_reps_gtdb_results/gtdbtk.GTDB.ar53.summary.tsv') 
+
+old_reps_gtdb_results = rbind(old_reps_arc_results, old_reps_bac_results) %>%
+  dplyr::rename(genome = user_genome,
+                gtdb_r220_taxonomy = classification) %>%
+  select(genome, gtdb_r220_taxonomy)
+
+vanish_blossum_scores = read.csv('/home/mmcarter/user_data/Projects/Hadza_Metagenomics/supplementary_tables_V2/SupplementalTable_S5_v1.all.csv') %>% 
+  rowwise() %>%
+  mutate(species_name = paste(strsplit(species_name, ' ')[[1]], collapse='_'))
+
+vanish_blossum_scores_new_tax = vanish_blossum_scores %>% 
+  mutate(genome_representative = str_replace(str_replace(genome_representative, '.fa', ''), '.fna', '')) %>%
+  left_join(old_reps_gtdb_results, by=c('genome_representative'='genome')) %>%
+  dplyr::rename(gtdb_OLD_taxonomy = GTDB_tax) %>%
+  select(genome_representative, gtdb_r220_taxonomy, gtdb_OLD_taxonomy, perc_rank, taxa_type, ww_prev, ww_abund, hadza_prev, hadza_abund, hg_prev, hg_abund, transitional_prev, transitional_prev, industrial_prev, industrial_abund) %>%
+  dplyr::rename(orig_genome_name = genome_representative) %>%
+  mutate(name = str_replace_all(str_replace(strsplit(gtdb_r220_taxonomy, ';')[[1]][7], 's__', ''), ' ', '_'))
+
+
+ht_sharing_with_vanish_blossum = filtered_ht_pop_sharing %>% 
+  left_join(vanish_blossum_scores_new_tax, by='name')
+
+ggplot(ht_sharing_with_vanish_blossum, aes(x=perc_rank, y=frac, color=taxa_type)) +
+  geom_point() +
+  scale_color_manual(values=c('#0984e3', '#e84393')) +
+  theme_classic() +
+  ylab('H-T Sharing Rate') +
+  xlab('VANISH-BloSSUM Percentile Enrichment')
+
+ht_sharing_with_vanish_blossum %>%
+  mutate(taxa_type = ifelse(is.na(taxa_type), 'Neither', taxa_type),
+         taxa_type = factor(taxa_type, levels = c('BloSSUM', 'Neither', 'VANISH'))) %>%
+  ungroup() %>%
+  count(sharing_category, taxa_type) %>%
+  pivot_wider(names_from = sharing_category, values_from = n, values_fill = 0)
+
+ht_sharing_with_vanish_blossum %>% group_by(taxa_type) %>% summarise(n())
+
+ggplot(ht_sharing_with_vanish_blossum, aes(x=perc_rank)) +
+  geom_histogram() +
+  theme_classic() 
+```
+
+## Longest tract analysis 
+
+### Load data
+
+```{r load_data}
+
+continuous_run_years = read_tsv('/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/input_data/continuous_run/250220_l99_inferred_times.tsv') %>%
+  filter(num_pairs >= 100) %>%
+  rowwise() %>%
+  mutate(
+    comp = paste0(pop1, '-', pop2),
+    comp = factor(comp, levels=c('Europe-NorthAmerica', 'Asia-NorthAmerica', 'Hadza-Tsimane')),
+    comp2 = ifelse(pop1 == pop2, 'Within populations', 'Between populations')) 
+
+```
+### Within-between pops
+
+```{r }
+
+ht_within_between_split_plot = ggplot(continuous_run_years %>% filter(comp == 'Hadza-Tsimane'), aes(x=mean_within_L99, y=between_L99)) + 
+  geom_abline(slope = 1, intercept = 0, linetype='dashed') +
+  geom_density_2d_filled(aes(alpha = ..level..), fill = "#5c93c9") +
+  geom_point(size=0.5) +
+  scale_x_log10(limits=c(200, 8000), expand=c(0, 0)) +
+  scale_y_log10(limits=c(200, 8000), expand=c(0, 0)) +
+  geom_abline(slope = 1, intercept = 0, linetype='dashed') +
+  xlab('Within population L99 (bp)') +
+  ylab('Between population L99 (bp)') +
+  theme_classic() +
+  theme(aspect.ratio=1) +
+  geom_text_repel(aes(label=species), max.overlaps = 20, size=2)
+
+ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/ht_within_between_L99.pdf',
+       plot = ht_within_between_split_plot, 
+       width = 5, height = 3)
+
+ana_within_between_split_plot = ggplot(continuous_run_years %>% filter(comp == 'Asia-NorthAmerica'), aes(x=mean_within_L99, y=between_L99)) + 
+  geom_abline(slope = 1, intercept = 0, linetype='dashed') +
+  geom_density_2d_filled(aes(alpha = ..level..), fill = "#c07d3b") +
+  geom_point(size=0.5) +
+  scale_x_log10(limits=c(200, 8000), expand=c(0, 0)) +
+  scale_y_log10(limits=c(200, 8000), expand=c(0, 0)) +
+  geom_abline(slope = 1, intercept = 0, linetype='dashed') +
+  xlab('Within population L99 (bp)') +
+  ylab('Between population L99 (bp)') +
+  theme_classic() +
+  theme(aspect.ratio=1) +
+  geom_text_repel(aes(label=species), max.overlaps = 6, size=2)
+
+ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/ana_within_between_L99.pdf',
+       plot = ana_within_between_split_plot, 
+       width = 5, height = 3)
+
+ena_within_between_split_plot = ggplot(continuous_run_years %>% filter(comp == 'Europe-NorthAmerica'), aes(x=mean_within_L99, y=between_L99)) + 
+  geom_abline(slope = 1, intercept = 0, linetype='dashed') +
+  geom_density_2d_filled(aes(alpha = ..level..), fill = "#dd523e") +
+  geom_point(size=0.5) +
+  scale_x_log10(limits=c(200, 8000), expand=c(0, 0)) +
+  scale_y_log10(limits=c(200, 8000), expand=c(0, 0)) +
+  geom_abline(slope = 1, intercept = 0, linetype='dashed') +
+  xlab('Within population L99 (bp)') +
+  ylab('Between population L99 (bp)') +
+  theme_classic() +
+  theme(aspect.ratio=1) +
+  geom_text_repel(aes(label=species), max.overlaps = 10, size=2)
+
+ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/ena_within_between_L99.pdf',
+       plot = ena_within_between_split_plot, 
+       width = 5, height = 3)
+
+```
+
+#### Compare Asia-NAm with Hadza-Tsimane 
+
+```{r }
+
+between_pops_spread = continuous_run_years %>% 
+  select(species, comp, between_L99) %>% 
+  spread(key='comp', value='between_L99') %>%
+  filter(!is.na(`Asia-NorthAmerica`) & !is.na(`Hadza-Tsimane`)) 
+
+ht_ana_between_split_compare_plot = ggplot(between_pops_spread, aes(x=`Asia-NorthAmerica`, y=`Hadza-Tsimane`)) + 
+  geom_abline(slope = 1, intercept = 0, linetype='dashed') +
+  geom_density_2d_filled(aes(alpha = ..level..), fill = "#9448bc") +
+  geom_point(size=0.5) +
+  scale_x_log10(limits=c(200, 8000), expand=c(0, 0)) +
+  scale_y_log10(limits=c(200, 8000), expand=c(0, 0)) +
+  geom_abline(slope = 1, intercept = 0, linetype='dashed') +
+  xlab('Asia-NorthAmerica Between Pop. L99 (bp)') +
+  ylab('Hadza-Tsimane Between Pop. L99 (bp)') +
+  theme_classic() +
+  theme(aspect.ratio=1) +
+  geom_text_repel(aes(label=species), max.overlaps = 10, size=2)
+
+ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/ht_ana_between_split_compare_L99.pdf',
+       plot = ht_ana_between_split_compare_plot, 
+       width = 5, height = 3)
+```
+
+### Implied years split
+
+```{r }
+
+inferred_years_plot = ggplot(continuous_run_years, aes(x=comp, y=mean_year, fill=comp, color=comp)) +
+  geom_violin(draw_quantiles = c(0.5), alpha = 0.5) +
+  geom_jitter(width=0.25, size=0.5) +
+  coord_flip() +
+  scale_y_log10(expand=c(0,0), limits=c(1000, 100000)) +
+  scale_fill_manual(values = c("#5682b1", "#728c9d", "#49a1a1")) +
+  scale_color_manual(values = c("#5682b1", "#728c9d", "#49a1a1")) +
+  theme_classic() +
+  ylab('Implied Years') +
+  xlab('') +
+  guides(fill = FALSE, color=FALSE)
+
+ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/implied_years_split.pdf',
+       plot = inferred_years_plot, 
+       width = 3.25, height = 3)
+
+
+continuous_run_years %>% 
+  group_by(comp) %>%
+  summarise(median(mean_year),
+            n())
+
+## Total number of mags in this analysis
+continuous_run_years %>% 
+  select(species) %>% 
+  left_join(genomes_with_meta_filtered_with_rep_genome, by=c('species'='species')) %>%
+  filter(study %in% c('Hadza', 'Tsimane'))
+```
+
+## Continuous Run ECDF
+
+```{r }
+
+library(scales)
+
+
+nbreaks <- 5
+breaks <- 10^-(nbreaks:-2)
+breaks <- c(0,breaks)
+
+hadza_tsimane_continuous_run_filt = read_tsv('/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/input_data/continuous_run/250220__pairwise_max_runs.tsv') %>%
+  select(max_run, species_x, pop1, pop2) %>%
+  dplyr::rename(species = 2) %>%
+  filter(pop1 %in% c('Hadza', 'Tsimane') & pop2 %in% c('Hadza', 'Tsimane')) %>%
+  mutate(comp2 = factor(ifelse(pop1 == pop2, 'Within populations', 'Between populations'))) %>%
+  filter(species %in% c('Bacteroides_ovatus', 'Prevotella_faecis')) %>%
+  mutate(species = factor(species, levels=c( 'Prevotella_faecis', 'Bacteroides_ovatus')))
+
+select_ecdf_plots = ggplot(hadza_tsimane_continuous_run_filt, aes(x= max_run, color=comp2)) +
+  geom_step(aes(y = log10(1 - after_stat(y) + 1e-3)), stat = "ecdf", size=1.5) +
+  geom_hline(yintercept=-2, linetype='dashed') +
+  scale_x_log10(limits=c(1e2, 1e4), expand=c(0,0),
+                labels = trans_format("log10", math_format(10^.x))) +
+  scale_y_continuous(expand=c(0,0), limits=c(-3, 0.01), labels=c('0.1', '1', '10', '100')) +
+  annotation_logticks(sides='bl', outside=TRUE) +
+  scale_color_manual(values=c('#1c75bc', '#f7941d')) +
+  labs(color = NULL) +
+  facet_wrap(~species, nrow=2) +
+  theme_classic() +
+  theme(
+    axis.ticks.length = unit(0.25, "cm"),  # Extend tick length
+    panel.grid = element_blank(),  # Optional: remove panel grid
+    legend.position = c(0.95, 0.95),  # Position inside the plot area (x, y)
+    legend.justification = c("right", "top"),  # Justify the legend to the top right
+    legend.background = element_rect(fill = "white", color = "black"),
+    legend.spacing.x = unit(0, 'pt'),  # Remove horizontal spacing
+    legend.spacing.y = unit(0, 'pt'),  # Remove vertical spacing
+    legend.margin = unit(c(0, 0, 0, 0), 'pt'),  # Remove margin around the legend
+    legend.box.margin = unit(c(5, 5, 5, 5), 'pt')
+  ) +
+  ylab('Probability (%)') +
+  xlab('Tract length (bp)') 
+
+ggsave(filename = '/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/example_ecdf_facet_plot.pdf',
+       plot = select_ecdf_plots,
+       width=3, height=4)
+
+```
+
+## Moments Analysis and Figures
+
+### Private SNVs plot
+
+```{r }
+
+sfs_data = read.csv('/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/input_data/moments_analysis/moments_results/250220_full_private_SNV_proba/Vescimonas_sp900551995_exclusive_snv_likelihoods.csv')
+
+avg_tot = sfs_data %>% pull(Hadza_tot) %>% mean() + sfs_data %>% pull(Tsimane_tot) %>% mean()
+
+null_model_prob = sfs_data %>% 
+  group_by(Total_alt) %>% 
+  summarise(mean_exl_snv_lik = mean(Exclusive_snv_likelihood)) %>%
+  mutate(xs = Total_alt/avg_tot)
+
+fit_model_prob = sfs_data %>% 
+  group_by(Total_alt) %>% 
+  summarise(mean_exl_snv_lik = mean(Model_exclusive_likelihood)) %>%
+  mutate(xs = Total_alt/avg_tot)
+
+# Is_exclusive will be 0/1 for each SNV, so the mean is the fraction of SNVs that are exclusive to one population
+obs_prob = sfs_data %>% 
+  group_by(Total_alt) %>% 
+  mutate(Is_exclusive = ifelse(Is_exclusive == 'True', 1, 0)) %>%
+  summarise(mean_is_excl = mean(Is_exclusive)) %>%
+  mutate(xs = Total_alt/avg_tot) %>%
+  filter(mean_is_excl > 0.0005)
+
+example_model_fit_plot = ggplot() +
+  geom_line(data=null_model_prob, aes(x=xs, mean_exl_snv_lik), size=2, color='#00204D') +
+  geom_line(data=fit_model_prob, aes(x=xs, mean_exl_snv_lik), size=2, color='#FFEA46') +
+  geom_point(data=obs_prob, aes(x=xs, y=mean_is_excl), size=3, color='7C7B78') +
+  scale_y_log10(limits=c(0.001, 1), expand=c(0,0)) +
+  scale_x_continuous(limits=c(0, 0.28), breaks=c(0, 0.05, 0.1, 0.15, 0.2, 0.25), expand=c(0,0)) +
+  annotation_logticks(sides = "l", outside = TRUE) +
+  coord_cartesian(clip = "off") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+
+ggsave('/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/example_model_fit_figure.v2.pdf',
+       example_model_fit_plot,
+       width=3.5,height=3)
+
+```
+
+### Split times
+
+```{r }
+
+
+human_split_times = read.csv('/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/input_data/moments_analysis/MedinaMunoz_model.csv') %>%
+  select(description, syn_value, syn_SE) %>%
+  dplyr::rename(species_names = 1,
+         Tsplit = 2, 
+         Tsplit_uncert = 3) %>%
+  mutate(Tsplit = Tsplit*1e3,
+         Tsplit_uncert = Tsplit_uncert*1e3,
+         flag = 'Human')
+
+
+
+# bacteria_split_times = read.csv('/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/input_data/moments_analysis/moments_results_HadzaTsimane_split_mig.csv') %>%
+#   select(species_names, Tsplit, Tsplit_uncert) %>%
+#   mutate(flag = 'Gut Bacteria')
+
+bacteria_split_times = read.csv('/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/input_data/moments_analysis/250220_full__split_mig__Hadza__Tsimane_cleaned.csv') %>%
+  select(species, `Tsplit..yr.`, `Tsplit_std..yr.`) %>%
+  dplyr::rename(species_names = 1, Tsplit = 2, Tsplit_uncert = 3) %>%
+  mutate(flag = 'Gut Bacteria')
+
+gtdb_assignments = combined_gtdb_results %>% 
+  rowwise() %>% 
+  select(classification) %>%
+  distinct() %>%
+  mutate(species_names = str_replace(str_replace(strsplit(classification, ';')[[1]][7], 's__', ''), ' ', '_')) %>%
+  select(species_names, classification)
+
+gtdb_assignments %>% 
+  filter(grepl('sp000435055', classification))
+
+read.csv('/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/input_data/moments_analysis/moments_species.txt', header=F) %>%
+  dplyr::rename(species_names = 1) %>%
+  left_join(gtdb_assignments, by='species_names') %>% 
+  left_join(bacteria_split_times) %>% 
+  rowwise() %>% 
+  mutate(family = strsplit(classification, ';')[[1]][4]) %>%
+  group_by(family) %>%
+  summarize(av = mean(Tsplit),
+            stdev = sd(Tsplit),
+            num = n())
+
+
+
+combined_split_times = rbind(human_split_times, bacteria_split_times) %>%
+  mutate(flag = factor(flag, levels=c('Human', 'Gut Bacteria')),
+    species_names = factor(species_names, levels=c('AFR-OOA split', 'EAS-AME branching', 'Evtepia_sp004556345', 'Faecousia_sp900544945', 'PeH17_sp000435055', 'Ruminococcus_E_bromii_B', 'SFMI01_sp004556155', 'SFEL01_sp004557245', 'CAG_349_sp003539515', 'Ruminococcus_E_intestinalis', 'Vescimonas_sp900551995', 'Vescimonas_fastidiosa', 'UBA738_sp003522945', 'Faecalibacterium_prausnitzii_E', 'Gemmiger_qucibialis', 'Gemmiger_formicilis', 'Ventricola_sp900542395')))
+
+ 
+
+split_time_figure = ggplot(combined_split_times, aes(x=species_names, y=Tsplit, color=flag)) +
+  # geom_hline(yintercept = 105570, linetype = 'dashed', color='grey') +
+  # geom_hline(yintercept = 34758, linetype = 'dashed', color='grey') +
+  facet_grid(~flag, scales='free_x', space="free_x") +
+  geom_point() +
+  geom_errorbar(aes(ymax=Tsplit+2*Tsplit_uncert, ymin=Tsplit-2*Tsplit_uncert), width=0) +
+  scale_y_log10(limits=c(10000, 130000)) +
+  annotation_logticks(sides = "l", outside = TRUE) +
+  coord_cartesian(clip = "off") +
+  scale_color_manual(values=c('#a5233c', '#1f77b4')) +
+  guides(color=FALSE) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(angle=45, hjust=1),
+        strip.background = element_blank())
+
+ggsave('/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/split_time_figure.v2.pdf',
+       split_time_figure,
+       width=4, height=3)
+
+
+bacteria_split_times %>% 
+  summarise(mean_split = mean(Tsplit),
+            sd_split = sd(Tsplit))
+```
+
+### Correlate moments and IBS
+
+```{r }
+
+joined_moments_ibs_times = bacteria_split_times %>%
+  left_join(continuous_run_years, by=c('species_names'='species')) %>%
+  filter(comp == 'Hadza-Tsimane')
+
+joined_split_times_plot = ggplot(joined_moments_ibs_times, aes(x=mean_year, y=Tsplit)) +
+  geom_point() +
+  geom_smooth(method='lm', se=F) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  ylab('Moments Inferred Split Time (years)') +
+  xlab('IBS Inferred Split Time (years)')
+
+ggsave('/home/mmcarter/user_data/Projects/VANISH/comigration_paper_analysis_v2/plots/joined_split_times_figure.v2.pdf', 
+       joined_split_times_plot,
+       width=4, height=3)
+
+
+correlation_test <- cor.test(joined_moments_ibs_times$Tsplit, joined_moments_ibs_times$mean_year, method = "pearson")
+
+# This gives you both the correlation coefficient and p-value
+print(correlation_test)
+
+
+## Total number of mags in this analysis
+joined_moments_ibs_times %>% 
+  select(species_names) %>% 
+  left_join(genomes_with_meta_filtered_with_rep_genome, by=c('species_names'='species')) %>%
+  filter(study %in% c('Hadza', 'Tsimane'))
+
+```
