@@ -371,11 +371,6 @@ class PairwiseHelper:
         species_run = self.get_species_pairwise_summary(species_name)
         return SpeciesPairwiseHelper(species_name, species_run, species_hgt, metadata=self.metadata, cluster_threshold=cluster_threshold)
 
-    def filter_close_pairs_by_div(self, species_res):
-        average_div = species_res['div'].mean()
-        cut_dist = average_div / config.close_pair_div_ratio
-        return dedup_pairwise_df(species_res, cut_dist=cut_dist)
-
     def filter_clonal_pairs_by_perc_id(self, species_res, threshold=config.clonal_cluster_pi_threshold):
         passed_mags = self.get_nonclonal_mags(species_res['species'].iloc[0], threshold)
         return filter_df_by_samples(species_res, passed_mags)
