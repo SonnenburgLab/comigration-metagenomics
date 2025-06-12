@@ -260,33 +260,6 @@ class SNVHelper:
                 snp_file.write('\t'.join(line_items))
         logging.info(f'File written to {output_file}')
 
-    def save_vcf(self):
-        """
-        Save the 4D core sites to a VCF file.
-        """
-        vcf_base = config.vcf_path / self.data_batch
-        if not vcf_base.exists():
-            vcf_base.mkdir()
-        output_file = vcf_base / f'{self.species_name}.vcf'
-
-        with open(output_file, 'w') as fout:
-            logging.info(f"Converting {self.syn_snvs.shape[0]} snvs to VCF format")
-            # Write the VCF header
-            fout.write("##fileformat=VCFv4.2\n")
-            fout.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" + "\t".join(self.syn_snvs.columns) + "\n")
-            
-            for ind, line in self.syn_snvs.iterrows():
-                contig, position, ref, alt = ind
-                genotypes = []
-                for gt in line:
-                    if gt == 255:
-                        genotypes.append(".")
-                    else:
-                        genotype = f"{gt}"
-                        genotypes.append(genotype)
-                fout.write(f"{contig}\t{position}\t.\t{ref}\t{alt}\t.\tPASS\t.\tGT\t" + "\t".join(genotypes) + "\n")
-        logging.info(f"VCF file written to {output_file}")
-
 
 # a child class for handling SNV vectors when doing between MAG comparison
 class PairwiseSNVHelper(SNVHelper):

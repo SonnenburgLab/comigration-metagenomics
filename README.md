@@ -73,23 +73,21 @@ None of the dependencies should take more than 30 minutes to install, assuming a
 ## Instructions for Use
 
 #### 1. Prepare Input Data
-Your data should be organized as follows:
+Your SNV catalog data should be organized as follows:
 ```
 data/
 ├── [batch_name]_snv_catalog_mag_metadata.tsv
 ├── [batch_name]_snv_catalog_species_metadata.tsv
-└── species/
-    └── [species_name]/
-        └── genomes/
-            ├── genome1.fa
-            ├── genome2.fa
-            └── ...
+└── [batch_name]/
+    ├── species1/
+    ├── species2/
+    └── ...
 ```
 
 #### 2. Configure Analysis Parameters
 Edit `config.py` to set:
+
 - Data paths (`data_base_path`, `snv_catalog_path`, etc.)
-- Analysis parameters (`databatch`, `sfs_batch`)
 - Mutation rates and generation times (for rescaling inferred parameters in moments analysis)
 
 #### 3. Run Analysis Modules
