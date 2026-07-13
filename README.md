@@ -51,17 +51,6 @@ The pipeline is organized into several analysis modules that can be run independ
 - CP-HMM: For recombination inference (external dependency from [Liu & Good 2024](https://journals.plos.org/plosbiology/article?id=10.1371/journal.pbio.3002472)); see [cphmm repo](https://github.com/zhiru-liu/close_pair_hmm). This package requires python 3.8 or *lower* for compatibility with the pipeline. Add to Python path as indicated in `cphmm_analysis/infer_all.py`.
 - FastSimBac: Bacterial genome simulation (optional, for validation analyses); for installation instructions see [FastSimBac bitbucket](https://bitbucket.org/nicofmay/fastsimbac/src/master/)
 
-**Typical Install Time:**
-None of the dependencies should take more than 30 minutes to install, assuming a good internet connection and no major issues with package repositories.
-
-### Versions Tested On
-
-- **Operating Systems**: 
-  - macOS (primary development environment)
-  - Linux (HPC cluster environments)
-- **Python**: 3.8.20
-- **Hardware**: Standard desktop/laptop computers with 8+ GB RAM recommended
-
 ### Apple Silicon Compatibility
 
 **Important Note for Apple Silicon (M1/M2/M3) Users:**
