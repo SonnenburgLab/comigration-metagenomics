@@ -1,0 +1,23 @@
+# Conda environment for the comigration-metagenomics analysis modules.
+#   conda env create -f environment.yml
+#   conda activate comig
+#
+# On Apple Silicon, `moments` has no native ARM build — create the environment under
+# x86 emulation:  CONDA_SUBDIR=osx-64 conda env create -f environment.yml
+# (see the "Apple Silicon Compatibility" note in README.md).
+name: comig
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.8
+  - snakemake
+  - pandas
+  - numpy
+  - scipy
+  - matplotlib
+  - seaborn
+  - scikit-learn
+  - pyarrow
+  - dadi
+  - bioconda::moments

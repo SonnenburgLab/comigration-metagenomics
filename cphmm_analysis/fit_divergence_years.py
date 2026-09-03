@@ -52,6 +52,8 @@ def load_infer_summary(pairwise_helper=None):
 
 
 if __name__ == '__main__':
+    config.supp_table_path.mkdir(parents=True, exist_ok=True)
+    config.supp_fig_path.mkdir(parents=True, exist_ok=True)
     infer_summary = load_infer_summary()
     infer_summary.drop(columns=['est_div'], inplace=True)
     infer_summary.to_csv(config.supp_table_path / 'cphmm_infer_summary.tsv', sep='\t')
@@ -60,6 +62,7 @@ if __name__ == '__main__':
     # fit trend per species
     ################################################################
     fig_path = config.project_path / 'cphmm_analysis' / 'close_pair_figs'
+    fig_path.mkdir(parents=True, exist_ok=True)
     species_trend = pd.DataFrame(columns=['species', 'b', 'year_at_10perc', 'num_pairs', 'genome_len'])
     fit_val = 'div_years'
     with PdfPages(fig_path / 'perc_id_species_trend.pdf') as pdf:

@@ -1,14 +1,11 @@
 import time
 import os
-
-import sys
+import pickle
 
 from utils import pairwise_utils
 import config
 
-# manually adding the cphmm path
-# need to be careful with the config imports since this module also uses config
-sys.path.append('/Users/Device6/Documents/Research/bgoodlab/close_pair_hmm')
+# cphmm is now an installed package (`pip install -e` the close_pair_hmm repo); see README.
 import cphmm.prior
 import tsimane_datahelper
 
@@ -20,10 +17,10 @@ print("Total species: ", len(species_list))
 error_species = {}
 for species in species_list:
     print("Processing species {} at {}".format(species, time.ctime()))
-    if os.path.exists(cphmm.prior.get_prior_filename(species)):
+    if os.path.exists(cphmm.prior.get_prior_filename(species, prior_path=config.cphmm_prior_path)):
         print("Skipping species {} as prior already exists".format(species))
         continue
-    species_dat = pairwise_helper.hgt_summary[pairwise_helper.hgt_summary['species']==species]
+    species_dat = pairwise_helper.drep_summary[pairwise_helper.drep_summary['species']==species]
     dh = tsimane_datahelper.DataHelper_Hadza_Tsimane(species=species, drep_summary=species_dat)
 
     try:
@@ -33,7 +30,6 @@ for species in species_list:
         print("Skipping species {} due to ValueError".format(species))
         continue
     divs, counts = cphmm.prior.compute_div_histogram(local_divs, genome_divs, separate_clades=False)
-    cphmm.prior.save_prior(divs, counts, dh.species)
+    cphmm.prior.save_prior(divs, counts, dh.species, prior_path=config.cphmm_prior_path)
 
-import pickle
 pickle.dump(error_species, open('error_species.pkl', 'wb'))

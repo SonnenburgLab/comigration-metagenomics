@@ -1,24 +1,23 @@
-import sys
 import time
 import os
 
 from utils import pairwise_utils
 import config
 
-# manually adding the cphmm path
-sys.path.append('/Users/Device6/Documents/Research/bgoodlab/close_pair_hmm')
+# cphmm is now an installed package (`pip install -e` the close_pair_hmm repo); see README.
 import cphmm.prior
+import cphmm.infer_pipelines as infer_pipelines
 import tsimane_datahelper
-import infer_pipelines
 
 pairwise_helper = pairwise_utils.PairwiseHelper(databatch=config.databatch)
 
 species_list = pairwise_helper.get_species_list()
 result_path = config.cphmm_res_path / 'results'
+result_path.mkdir(parents=True, exist_ok=True)
 
 for species in species_list:
     print("Processing species {} at {}".format(species, time.ctime()))
-    if not os.path.exists(cphmm.prior.get_prior_filename(species)):
+    if not os.path.exists(cphmm.prior.get_prior_filename(species, prior_path=config.cphmm_prior_path)):
         print("Skipping species {} because of lack of prior".format(species))
         continue
     summary_file = os.path.join(result_path, species + '__summary.csv')
@@ -29,6 +28,8 @@ for species in species_list:
 
     species_dat = pairwise_helper.drep_summary[pairwise_helper.drep_summary['species']==species]
     dh = tsimane_datahelper.DataHelper_Hadza_Tsimane(species=species, drep_summary=species_dat)
+    # use our own generated priors, not the package's bundled set
+    dh.hmm_prior_path = config.cphmm_prior_path
 
     infer_summary, transfer_summary = infer_pipelines.infer_pairs(dh, dh.get_close_pairs(perc_id_threshold=0.5))
 

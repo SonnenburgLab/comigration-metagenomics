@@ -34,8 +34,8 @@ class DataHelper_Hadza_Tsimane:
 
     def get_pair_snp_info(self, pair):
         snv_locs, cover_vec = self.snv_data.get_snv_vector(pair[0], pair[1])
-        snv_vec = np.zeros(cover_vec.shape)
-        snv_vec[snv_locs] = 1
+        snv_vec = np.zeros(cover_vec.shape, dtype=bool)
+        snv_vec[snv_locs] = True
         snv_vec = snv_vec[cover_vec]
 
         indices = self.snv_data.core_4D_coverage.index[cover_vec].copy()
